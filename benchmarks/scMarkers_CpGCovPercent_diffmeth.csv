@@ -1,0 +1,53 @@
+Freq	per	grp	grp_index	method	method_grp	method_stack	per2	method_stack.f	method_grp.f	grp.f
+770	2.9	scMarkers_t100	1	array.450k	array.450k	array.450k	2.9	450k array	450k array	scMarkers_t100
+1940	2.7	scMarkers_t300	2	array.450k	array.450k	array.450k	2.7	450k array	450k array	scMarkers_t300
+3043	2.6	scMarkers_t500	3	array.450k	array.450k	array.450k	2.6	450k array	450k array	scMarkers_t500
+5380	2.5	scMarkers_t1000	4	array.450k	array.450k	array.450k	2.5	450k array	450k array	scMarkers_t1000
+1191	4.6	scMarkers_t100	1	array.epic	array.epic	array.epic	4.6	EPIC array	EPIC array	scMarkers_t100
+3314	4.6	scMarkers_t300	2	array.epic	array.epic	array.epic	4.6	EPIC array	EPIC array	scMarkers_t300
+5265	4.5	scMarkers_t500	3	array.epic	array.epic	array.epic	4.5	EPIC array	EPIC array	scMarkers_t500
+9614	4.5	scMarkers_t1000	4	array.epic	array.epic	array.epic	4.5	EPIC array	EPIC array	scMarkers_t1000
+8640	33.1	scMarkers_t100	1	CCGGflank50	CCGGflanked	length1	33.1	-50	CCGG flanked	scMarkers_t100
+23336	32.1	scMarkers_t300	2	CCGGflank50	CCGGflanked	length1	32.1	-50	CCGG flanked	scMarkers_t300
+37073	31.8	scMarkers_t500	3	CCGGflank50	CCGGflanked	length1	31.8	-50	CCGG flanked	scMarkers_t500
+66673	30.9	scMarkers_t1000	4	CCGGflank50	CCGGflanked	length1	30.9	-50	CCGG flanked	scMarkers_t1000
+11969	45.8	scMarkers_t100	1	CCGGflank100	CCGGflanked	length2	12.7	+-100	CCGG flanked	scMarkers_t100
+32556	44.8	scMarkers_t300	2	CCGGflank100	CCGGflanked	length2	12.7	+-100	CCGG flanked	scMarkers_t300
+51900	44.5	scMarkers_t500	3	CCGGflank100	CCGGflanked	length2	12.7	+-100	CCGG flanked	scMarkers_t500
+93428	43.3	scMarkers_t1000	4	CCGGflank100	CCGGflanked	length2	12.4	+-100	CCGG flanked	scMarkers_t1000
+13989	53.5	scMarkers_t100	1	CCGGflank150	CCGGflanked	length3	7.7	+-150	CCGG flanked	scMarkers_t100
+38262	52.6	scMarkers_t300	2	CCGGflank150	CCGGflanked	length3	7.8	+-150	CCGG flanked	scMarkers_t300
+61004	52.3	scMarkers_t500	3	CCGGflank150	CCGGflanked	length3	7.8	+-150	CCGG flanked	scMarkers_t500
+110404	51.2	scMarkers_t1000	4	CCGGflank150	CCGGflanked	length3	7.90000000000001	+-150	CCGG flanked	scMarkers_t1000
+15473	59.2	scMarkers_t100	1	CCGGflank200	CCGGflanked	length4	5.7	+-200	CCGG flanked	scMarkers_t100
+42491	58.5	scMarkers_t300	2	CCGGflank200	CCGGflanked	length4	5.9	+-200	CCGG flanked	scMarkers_t300
+67793	58.2	scMarkers_t500	3	CCGGflank200	CCGGflanked	length4	5.90000000000001	+-200	CCGG flanked	scMarkers_t500
+123067	57.1	scMarkers_t1000	4	CCGGflank200	CCGGflanked	length4	5.9	+-200	CCGG flanked	scMarkers_t1000
+17533	67.1	scMarkers_t100	1	CCGGflank300	CCGGflanked	length5	7.89999999999999	+-300	CCGG flanked	scMarkers_t100
+48343	66.5	scMarkers_t300	2	CCGGflank300	CCGGflanked	length5	8	+-300	CCGG flanked	scMarkers_t300
+77121	66.2	scMarkers_t500	3	CCGGflank300	CCGGflanked	length5	8	+-300	CCGG flanked	scMarkers_t500
+140896	65.4	scMarkers_t1000	4	CCGGflank300	CCGGflanked	length5	8.3	+-300	CCGG flanked	scMarkers_t1000
+844	3.2	scMarkers_t100	1	RRBS_d50	RRBS	length1	3.2	-50	RRBS	scMarkers_t100
+2160	3	scMarkers_t300	2	RRBS_d50	RRBS	length1	3	-50	RRBS	scMarkers_t300
+3380	2.9	scMarkers_t500	3	RRBS_d50	RRBS	length1	2.9	-50	RRBS	scMarkers_t500
+5962	2.8	scMarkers_t1000	4	RRBS_d50	RRBS	length1	2.8	-50	RRBS	scMarkers_t1000
+2155	8.2	scMarkers_t100	1	RRBS_d100	RRBS	length2	5	+-100	RRBS	scMarkers_t100
+5533	7.6	scMarkers_t300	2	RRBS_d100	RRBS	length2	4.6	+-100	RRBS	scMarkers_t300
+8663	7.4	scMarkers_t500	3	RRBS_d100	RRBS	length2	4.5	+-100	RRBS	scMarkers_t500
+15371	7.1	scMarkers_t1000	4	RRBS_d100	RRBS	length2	4.3	+-100	RRBS	scMarkers_t1000
+3566	13.6	scMarkers_t100	1	RRBS_d150	RRBS	length3	5.4	+-150	RRBS	scMarkers_t100
+8966	12.3	scMarkers_t300	2	RRBS_d150	RRBS	length3	4.7	+-150	RRBS	scMarkers_t300
+14078	12.1	scMarkers_t500	3	RRBS_d150	RRBS	length3	4.7	+-150	RRBS	scMarkers_t500
+24905	11.6	scMarkers_t1000	4	RRBS_d150	RRBS	length3	4.5	+-150	RRBS	scMarkers_t1000
+4680	17.9	scMarkers_t100	1	RRBS_d200	RRBS	length4	4.3	+-200	RRBS	scMarkers_t100
+11948	16.4	scMarkers_t300	2	RRBS_d200	RRBS	length4	4.1	+-200	RRBS	scMarkers_t300
+18843	16.2	scMarkers_t500	3	RRBS_d200	RRBS	length4	4.1	+-200	RRBS	scMarkers_t500
+33352	15.5	scMarkers_t1000	4	RRBS_d200	RRBS	length4	3.9	+-200	RRBS	scMarkers_t1000
+6064	23.2	scMarkers_t100	1	RRBS_d300	RRBS	length5	5.3	+-300	RRBS	scMarkers_t100
+16059	22.1	scMarkers_t300	2	RRBS_d300	RRBS	length5	5.7	+-300	RRBS	scMarkers_t300
+25471	21.9	scMarkers_t500	3	RRBS_d300	RRBS	length5	5.7	+-300	RRBS	scMarkers_t500
+45535	21.1	scMarkers_t1000	4	RRBS_d300	RRBS	length5	5.6	+-300	RRBS	scMarkers_t1000
+1270	4.9	scMarkers_t100	1	meDIPseq	meDIPseq	meDIPseq	4.9	meDIPseq	meDIPseq	scMarkers_t100
+3394	4.7	scMarkers_t300	2	meDIPseq	meDIPseq	meDIPseq	4.7	meDIPseq	meDIPseq	scMarkers_t300
+5681	4.9	scMarkers_t500	3	meDIPseq	meDIPseq	meDIPseq	4.9	meDIPseq	meDIPseq	scMarkers_t500
+11442	5.3	scMarkers_t1000	4	meDIPseq	meDIPseq	meDIPseq	5.3	meDIPseq	meDIPseq	scMarkers_t1000

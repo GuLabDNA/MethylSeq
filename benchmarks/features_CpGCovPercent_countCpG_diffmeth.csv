@@ -1,0 +1,141 @@
+Freq	freq_total	per	grp	grp_index	method	method_grp	method_stack	per2	method_stack.f	method.f	grp.f	method_grp.f
+141733	2039541	6.9	CpG island	1	array.450k	array.450k	array.450k	6.9	450k array	450k array	CpG island	450k array
+159648	20764079	0.8	CpG opensea	4	array.450k	array.450k	array.450k	0.8	450k array	450k array	Open sea	450k array
+42432	1078298	3.9	CpG shelf	3	array.450k	array.450k	array.450k	3.9	450k array	450k array	CpG shelf	450k array
+105963	1864215	5.7	CpG shore	2	array.450k	array.450k	array.450k	5.7	450k array	450k array	CpG shore	450k array
+153136	2039541	7.5	CpG island	1	array.epic	array.epic	array.epic	7.5	EPIC array	EPIC array	CpG island	EPIC array
+452998	20764079	2.2	CpG opensea	4	array.epic	array.epic	array.epic	2.2	EPIC array	EPIC array	Open sea	EPIC array
+56477	1078298	5.2	CpG shelf	3	array.epic	array.epic	array.epic	5.2	EPIC array	EPIC array	CpG shelf	EPIC array
+146965	1864215	7.9	CpG shore	2	array.epic	array.epic	array.epic	7.9	EPIC array	EPIC array	CpG shore	EPIC array
+148324	2039541	7.3	CpG island	1	meDIPseq	meDIPseq	meDIPseq	7.3	MeDIPseq	meDIPseq	CpG island	MeDIPseq
+93319	20764079	0.4	CpG opensea	4	meDIPseq	meDIPseq	meDIPseq	0.4	MeDIPseq	meDIPseq	Open sea	MeDIPseq
+14106	1078298	1.3	CpG shelf	3	meDIPseq	meDIPseq	meDIPseq	1.3	MeDIPseq	meDIPseq	CpG shelf	MeDIPseq
+95569	1864215	5.1	CpG shore	2	meDIPseq	meDIPseq	meDIPseq	5.1	MeDIPseq	meDIPseq	CpG shore	MeDIPseq
+127863	2039541	6.3	CpG island	1	scMarkers	scMarkers	scMarkers	6.3	All cell markers	Cell markers	CpG island	All cell markers
+1314406	20764079	6.3	CpG opensea	4	scMarkers	scMarkers	scMarkers	6.3	All cell markers	Cell markers	Open sea	All cell markers
+112557	1078298	10.4	CpG shelf	3	scMarkers	scMarkers	scMarkers	10.4	All cell markers	Cell markers	CpG shelf	All cell markers
+216459	1864215	11.6	CpG shore	2	scMarkers	scMarkers	scMarkers	11.6	All cell markers	Cell markers	CpG shore	All cell markers
+1510447	2039541	74.1	CpG island	1	CCGGflank50	CCGGflanked	length1	74.1	50bp	CCGGflank50	CpG island	CCGG flanks
+4050500	20764079	19.5	CpG opensea	4	CCGGflank50	CCGGflanked	length1	19.5	50bp	CCGGflank50	Open sea	CCGG flanks
+317171	1078298	29.4	CpG shelf	3	CCGGflank50	CCGGflanked	length1	29.4	50bp	CCGGflank50	CpG shelf	CCGG flanks
+668937	1864215	35.9	CpG shore	2	CCGGflank50	CCGGflanked	length1	35.9	50bp	CCGGflank50	CpG shore	CCGG flanks
+1809471	2039541	88.7	CpG island	1	CCGGflank100	CCGGflanked	length2	14.6	50-100bp	CCGGflank100	CpG island	CCGG flanks
+5843142	20764079	28.1	CpG opensea	4	CCGGflank100	CCGGflanked	length2	8.6	50-100bp	CCGGflank100	Open sea	CCGG flanks
+458942	1078298	42.6	CpG shelf	3	CCGGflank100	CCGGflanked	length2	13.2	50-100bp	CCGGflank100	CpG shelf	CCGG flanks
+968188	1864215	51.9	CpG shore	2	CCGGflank100	CCGGflanked	length2	16	50-100bp	CCGGflank100	CpG shore	CCGG flanks
+1912799	2039541	93.8	CpG island	1	CCGGflank150	CCGGflanked	length3	5.09999999999999	100-150bp	CCGGflank150	CpG island	CCGG flanks
+7064098	20764079	34	CpG opensea	4	CCGGflank150	CCGGflanked	length3	5.9	100-150bp	CCGGflank150	Open sea	CCGG flanks
+552150	1078298	51.2	CpG shelf	3	CCGGflank150	CCGGflanked	length3	8.6	100-150bp	CCGGflank150	CpG shelf	CCGG flanks
+1162132	1864215	62.3	CpG shore	2	CCGGflank150	CCGGflanked	length3	10.4	100-150bp	CCGGflank150	CpG shore	CCGG flanks
+1957533	2039541	96	CpG island	1	CCGGflank200	CCGGflanked	length4	2.2	150-200bp	CCGGflank200	CpG island	CCGG flanks
+8022848	20764079	38.6	CpG opensea	4	CCGGflank200	CCGGflanked	length4	4.6	150-200bp	CCGGflank200	Open sea	CCGG flanks
+620937	1078298	57.6	CpG shelf	3	CCGGflank200	CCGGflanked	length4	6.4	150-200bp	CCGGflank200	CpG shelf	CCGG flanks
+1300044	1864215	69.7	CpG shore	2	CCGGflank200	CCGGflanked	length4	7.40000000000001	150-200bp	CCGGflank200	CpG shore	CCGG flanks
+1991371	2039541	97.6	CpG island	1	CCGGflank300	CCGGflanked	length5	1.59999999999999	200-300bp	CCGGflank300	CpG island	CCGG flanks
+9532310	20764079	45.9	CpG opensea	4	CCGGflank300	CCGGflanked	length5	7.3	200-300bp	CCGGflank300	Open sea	CCGG flanks
+721790	1078298	66.9	CpG shelf	3	CCGGflank300	CCGGflanked	length5	9.3	200-300bp	CCGGflank300	CpG shelf	CCGG flanks
+1483036	1864215	79.6	CpG shore	2	CCGGflank300	CCGGflanked	length5	9.89999999999999	200-300bp	CCGGflank300	CpG shore	CCGG flanks
+453734	2039541	22.2	CpG island	1	RRBS_d50	RRBS	length1	22.2	50bp	RRBS_d50	CpG island	RRBS
+295570	20764079	1.4	CpG opensea	4	RRBS_d50	RRBS	length1	1.4	50bp	RRBS_d50	Open sea	RRBS
+28428	1078298	2.6	CpG shelf	3	RRBS_d50	RRBS	length1	2.6	50bp	RRBS_d50	CpG shelf	RRBS
+75529	1864215	4.1	CpG shore	2	RRBS_d50	RRBS	length1	4.1	50bp	RRBS_d50	CpG shore	RRBS
+916076	2039541	44.9	CpG island	1	RRBS_d100	RRBS	length2	22.7	50-100bp	RRBS_d100	CpG island	RRBS
+786409	20764079	3.8	CpG opensea	4	RRBS_d100	RRBS	length2	2.4	50-100bp	RRBS_d100	Open sea	RRBS
+74377	1078298	6.9	CpG shelf	3	RRBS_d100	RRBS	length2	4.3	50-100bp	RRBS_d100	CpG shelf	RRBS
+191029	1864215	10.2	CpG shore	2	RRBS_d100	RRBS	length2	6.1	50-100bp	RRBS_d100	CpG shore	RRBS
+1212040	2039541	59.4	CpG island	1	RRBS_d150	RRBS	length3	14.5	100-150bp	RRBS_d150	CpG island	RRBS
+1312514	20764079	6.3	CpG opensea	4	RRBS_d150	RRBS	length3	2.5	100-150bp	RRBS_d150	Open sea	RRBS
+123562	1078298	11.5	CpG shelf	3	RRBS_d150	RRBS	length3	4.6	100-150bp	RRBS_d150	CpG shelf	RRBS
+312470	1864215	16.8	CpG shore	2	RRBS_d150	RRBS	length3	6.6	100-150bp	RRBS_d150	CpG shore	RRBS
+1410092	2039541	69.1	CpG island	1	RRBS_d200	RRBS	length4	9.7	150-200bp	RRBS_d200	CpG island	RRBS
+1763100	20764079	8.5	CpG opensea	4	RRBS_d200	RRBS	length4	2.2	150-200bp	RRBS_d200	Open sea	RRBS
+168127	1078298	15.6	CpG shelf	3	RRBS_d200	RRBS	length4	4.1	150-200bp	RRBS_d200	CpG shelf	RRBS
+421400	1864215	22.6	CpG shore	2	RRBS_d200	RRBS	length4	5.8	150-200bp	RRBS_d200	CpG shore	RRBS
+1636731	2039541	80.2	CpG island	1	RRBS_d300	RRBS	length5	11.1	200-300bp	RRBS_d300	CpG island	RRBS
+2325543	20764079	11.2	CpG opensea	4	RRBS_d300	RRBS	length5	2.7	200-300bp	RRBS_d300	Open sea	RRBS
+233326	1078298	21.6	CpG shelf	3	RRBS_d300	RRBS	length5	6	200-300bp	RRBS_d300	CpG shelf	RRBS
+595169	1864215	31.9	CpG shore	2	RRBS_d300	RRBS	length5	9.3	200-300bp	RRBS_d300	CpG shore	RRBS
+11042	268707	4.1	Enhancer	6	array.450k	array.450k	array.450k	4.1	450k array	450k array	Enhancer	450k array
+168862	1854634	9.1	Promoter	5	array.450k	array.450k	array.450k	9.1	450k array	450k array	Promoter	450k array
+29722	833477	3.6	Exon_coding	7	array.450k	array.450k	array.450k	3.6	450k array	450k array	CDS	450k array
+111071	9493219	1.2	Intron	9	array.450k	array.450k	array.450k	1.2	450k array	450k array	Intron	450k array
+28935	268707	10.8	Enhancer	6	array.epic	array.epic	array.epic	10.8	EPIC array	EPIC array	Enhancer	EPIC array
+214412	1854634	11.6	Promoter	5	array.epic	array.epic	array.epic	11.6	EPIC array	EPIC array	Promoter	EPIC array
+46153	833477	5.5	Exon_coding	7	array.epic	array.epic	array.epic	5.5	EPIC array	EPIC array	CDS	EPIC array
+252581	9493219	2.7	Intron	9	array.epic	array.epic	array.epic	2.7	EPIC array	EPIC array	Intron	EPIC array
+26501	268707	9.9	Enhancer	6	meDIPseq	meDIPseq	meDIPseq	9.9	MeDIPseq	meDIPseq	Enhancer	MeDIPseq
+83422	1854634	4.5	Promoter	5	meDIPseq	meDIPseq	meDIPseq	4.5	MeDIPseq	meDIPseq	Promoter	MeDIPseq
+32782	833477	3.9	Exon_coding	7	meDIPseq	meDIPseq	meDIPseq	3.9	MeDIPseq	meDIPseq	CDS	MeDIPseq
+81864	9493219	0.9	Intron	9	meDIPseq	meDIPseq	meDIPseq	0.9	MeDIPseq	meDIPseq	Intron	MeDIPseq
+52269	268707	19.5	Enhancer	6	scMarkers	scMarkers	scMarkers	19.5	All cell markers	Cell markers	Enhancer	All cell markers
+85945	1854634	4.6	Promoter	5	scMarkers	scMarkers	scMarkers	4.6	All cell markers	Cell markers	Promoter	All cell markers
+112367	833477	13.5	Exon_coding	7	scMarkers	scMarkers	scMarkers	13.5	All cell markers	Cell markers	CDS	All cell markers
+774800	9493219	8.2	Intron	9	scMarkers	scMarkers	scMarkers	8.2	All cell markers	Cell markers	Intron	All cell markers
+98854	268707	36.8	Enhancer	6	CCGGflank50	CCGGflanked	length1	36.8	50bp	CCGGflank50	Enhancer	CCGG flanks
+1193162	1854634	64.3	Promoter	5	CCGGflank50	CCGGflanked	length1	64.3	50bp	CCGGflank50	Promoter	CCGG flanks
+337768	833477	40.5	Exon_coding	7	CCGGflank50	CCGGflanked	length1	40.5	50bp	CCGGflank50	CDS	CCGG flanks
+2165536	9493219	22.8	Intron	9	CCGGflank50	CCGGflanked	length1	22.8	50bp	CCGGflank50	Intron	CCGG flanks
+131817	268707	49.1	Enhancer	6	CCGGflank100	CCGGflanked	length2	12.3	50-100bp	CCGGflank100	Enhancer	CCGG flanks
+1464333	1854634	79	Promoter	5	CCGGflank100	CCGGflanked	length2	14.7	50-100bp	CCGGflank100	Promoter	CCGG flanks
+459485	833477	55.1	Exon_coding	7	CCGGflank100	CCGGflanked	length2	14.6	50-100bp	CCGGflank100	CDS	CCGG flanks
+3125352	9493219	32.9	Intron	9	CCGGflank100	CCGGflanked	length2	10.1	50-100bp	CCGGflank100	Intron	CCGG flanks
+152004	268707	56.6	Enhancer	6	CCGGflank150	CCGGflanked	length3	7.5	100-150bp	CCGGflank150	Enhancer	CCGG flanks
+1583257	1854634	85.4	Promoter	5	CCGGflank150	CCGGflanked	length3	6.40000000000001	100-150bp	CCGGflank150	Promoter	CCGG flanks
+523383	833477	62.8	Exon_coding	7	CCGGflank150	CCGGflanked	length3	7.7	100-150bp	CCGGflank150	CDS	CCGG flanks
+3771932	9493219	39.7	Intron	9	CCGGflank150	CCGGflanked	length3	6.8	100-150bp	CCGGflank150	Intron	CCGG flanks
+166743	268707	62.1	Enhancer	6	CCGGflank200	CCGGflanked	length4	5.5	150-200bp	CCGGflank200	Enhancer	CCGG flanks
+1651674	1854634	89.1	Promoter	5	CCGGflank200	CCGGflanked	length4	3.69999999999999	150-200bp	CCGGflank200	Promoter	CCGG flanks
+562406	833477	67.5	Exon_coding	7	CCGGflank200	CCGGflanked	length4	4.7	150-200bp	CCGGflank200	CDS	CCGG flanks
+4268948	9493219	45	Intron	9	CCGGflank200	CCGGflanked	length4	5.3	150-200bp	CCGGflank200	Intron	CCGG flanks
+187336	268707	69.7	Enhancer	6	CCGGflank300	CCGGflanked	length5	7.6	200-300bp	CCGGflank300	Enhancer	CCGG flanks
+1727927	1854634	93.2	Promoter	5	CCGGflank300	CCGGflanked	length5	4.10000000000001	200-300bp	CCGGflank300	Promoter	CCGG flanks
+612863	833477	73.5	Exon_coding	7	CCGGflank300	CCGGflanked	length5	6	200-300bp	CCGGflank300	CDS	CCGG flanks
+5038686	9493219	53.1	Intron	9	CCGGflank300	CCGGflanked	length5	8.1	200-300bp	CCGGflank300	Intron	CCGG flanks
+17447	268707	6.5	Enhancer	6	RRBS_d50	RRBS	length1	6.5	50bp	RRBS_d50	Enhancer	RRBS
+335490	1854634	18.1	Promoter	5	RRBS_d50	RRBS	length1	18.1	50bp	RRBS_d50	Promoter	RRBS
+45678	833477	5.5	Exon_coding	7	RRBS_d50	RRBS	length1	5.5	50bp	RRBS_d50	CDS	RRBS
+184327	9493219	1.9	Intron	9	RRBS_d50	RRBS	length1	1.9	50bp	RRBS_d50	Intron	RRBS
+38179	268707	14.2	Enhancer	6	RRBS_d100	RRBS	length2	7.7	50-100bp	RRBS_d100	Enhancer	RRBS
+683705	1854634	36.9	Promoter	5	RRBS_d100	RRBS	length2	18.8	50-100bp	RRBS_d100	Promoter	RRBS
+112995	833477	13.6	Exon_coding	7	RRBS_d100	RRBS	length2	8.1	50-100bp	RRBS_d100	CDS	RRBS
+472161	9493219	5	Intron	9	RRBS_d100	RRBS	length2	3.1	50-100bp	RRBS_d100	Intron	RRBS
+53954	268707	20.1	Enhancer	6	RRBS_d150	RRBS	length3	5.9	100-150bp	RRBS_d150	Enhancer	RRBS
+913068	1854634	49.2	Promoter	5	RRBS_d150	RRBS	length3	12.3	100-150bp	RRBS_d150	Promoter	RRBS
+170331	833477	20.4	Exon_coding	7	RRBS_d150	RRBS	length3	6.8	100-150bp	RRBS_d150	CDS	RRBS
+774672	9493219	8.2	Intron	9	RRBS_d150	RRBS	length3	3.2	100-150bp	RRBS_d150	Intron	RRBS
+65981	268707	24.6	Enhancer	6	RRBS_d200	RRBS	length4	4.5	150-200bp	RRBS_d200	Enhancer	RRBS
+1069882	1854634	57.7	Promoter	5	RRBS_d200	RRBS	length4	8.5	150-200bp	RRBS_d200	Promoter	RRBS
+219013	833477	26.3	Exon_coding	7	RRBS_d200	RRBS	length4	5.9	150-200bp	RRBS_d200	CDS	RRBS
+1038950	9493219	10.9	Intron	9	RRBS_d200	RRBS	length4	2.7	150-200bp	RRBS_d200	Intron	RRBS
+85306	268707	31.7	Enhancer	6	RRBS_d300	RRBS	length5	7.1	200-300bp	RRBS_d300	Enhancer	RRBS
+1255955	1854634	67.7	Promoter	5	RRBS_d300	RRBS	length5	10	200-300bp	RRBS_d300	Promoter	RRBS
+290855	833477	34.9	Exon_coding	7	RRBS_d300	RRBS	length5	8.6	200-300bp	RRBS_d300	CDS	RRBS
+1381251	9493219	14.5	Intron	9	RRBS_d300	RRBS	length5	3.6	200-300bp	RRBS_d300	Intron	RRBS
+18523	375401	4.9	UTR	8	array.450k	array.450k	array.450k	4.9	450k array	450k array	UTR	450k array
+110556	12920695	0.9	Intergenic	10	array.450k	array.450k	array.450k	0.9	450k array	450k array	Intergenic	450k array
+24115	375401	6.4	UTR	8	array.epic	array.epic	array.epic	6.4	EPIC array	EPIC array	UTR	EPIC array
+243380	12920695	1.9	Intergenic	10	array.epic	array.epic	array.epic	1.9	EPIC array	EPIC array	Intergenic	EPIC array
+9875	375401	2.6	UTR	8	meDIPseq	meDIPseq	meDIPseq	2.6	MeDIPseq	meDIPseq	UTR	MeDIPseq
+116874	12920695	0.9	Intergenic	10	meDIPseq	meDIPseq	meDIPseq	0.9	MeDIPseq	meDIPseq	Intergenic	MeDIPseq
+45055	375401	12	UTR	8	scMarkers	scMarkers	scMarkers	12	All cell markers	Cell markers	UTR	All cell markers
+700849	12920695	5.4	Intergenic	10	scMarkers	scMarkers	scMarkers	5.4	All cell markers	Cell markers	Intergenic	All cell markers
+103001	375401	27.4	UTR	8	CCGGflank50	CCGGflanked	length1	27.4	50bp	CCGGflank50	UTR	CCGG flanks
+2648734	12920695	20.5	Intergenic	10	CCGGflank50	CCGGflanked	length1	20.5	50bp	CCGGflank50	Intergenic	CCGG flanks
+143901	375401	38.3	UTR	8	CCGGflank100	CCGGflanked	length2	10.9	50-100bp	CCGGflank100	UTR	CCGG flanks
+3754855	12920695	29.1	Intergenic	10	CCGGflank100	CCGGflanked	length2	8.6	50-100bp	CCGGflank100	Intergenic	CCGG flanks
+171804	375401	45.8	UTR	8	CCGGflank150	CCGGflanked	length3	7.5	100-150bp	CCGGflank150	UTR	CCGG flanks
+4488799	12920695	34.7	Intergenic	10	CCGGflank150	CCGGflanked	length3	5.6	100-150bp	CCGGflank150	Intergenic	CCGG flanks
+193031	375401	51.4	UTR	8	CCGGflank200	CCGGflanked	length4	5.6	150-200bp	CCGGflank200	UTR	CCGG flanks
+5058560	12920695	39.2	Intergenic	10	CCGGflank200	CCGGflanked	length4	4.5	150-200bp	CCGGflank200	Intergenic	CCGG flanks
+224834	375401	59.9	UTR	8	CCGGflank300	CCGGflanked	length5	8.5	200-300bp	CCGGflank300	UTR	CCGG flanks
+5936861	12920695	45.9	Intergenic	10	CCGGflank300	CCGGflanked	length5	6.7	200-300bp	CCGGflank300	Intergenic	CCGG flanks
+12064	375401	3.2	UTR	8	RRBS_d50	RRBS	length1	3.2	50bp	RRBS_d50	UTR	RRBS
+258255	12920695	2	Intergenic	10	RRBS_d50	RRBS	length1	2	50bp	RRBS_d50	Intergenic	RRBS
+27964	375401	7.4	UTR	8	RRBS_d100	RRBS	length2	4.2	50-100bp	RRBS_d100	UTR	RRBS
+632887	12920695	4.9	Intergenic	10	RRBS_d100	RRBS	length2	2.9	50-100bp	RRBS_d100	Intergenic	RRBS
+43008	375401	11.5	UTR	8	RRBS_d150	RRBS	length3	4.1	100-150bp	RRBS_d150	UTR	RRBS
+1005553	12920695	7.8	Intergenic	10	RRBS_d150	RRBS	length3	2.9	100-150bp	RRBS_d150	Intergenic	RRBS
+56379	375401	15	UTR	8	RRBS_d200	RRBS	length4	3.5	150-200bp	RRBS_d200	UTR	RRBS
+1312514	12920695	10.2	Intergenic	10	RRBS_d200	RRBS	length4	2.4	150-200bp	RRBS_d200	Intergenic	RRBS
+76620	375401	20.4	UTR	8	RRBS_d300	RRBS	length5	5.4	200-300bp	RRBS_d300	UTR	RRBS
+1700782	12920695	13.2	Intergenic	10	RRBS_d300	RRBS	length5	3	200-300bp	RRBS_d300	Intergenic	RRBS
