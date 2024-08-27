@@ -1,0 +1,140 @@
+---
+title: "CNS_training"
+author: "Jingru Yu"
+date: '2022-10-28'
+output: html_document
+
+Update: '2023-07-07'
+---
+
+#run in powershell
+#& 'C:\Program Files\R\R-4.2.0\bin\R.exe' --max-ppsize 500000
+#source("D:/Jingru/classification/Program/11CNS_training.R")
+
+
+# load packages and datasets
+
+```{r, warning=FALSE}
+#rm(list=ls())
+
+pathmeth <- "D:/Jingru/methylation"
+pathct.d <- "D:/Jingru/deconv/v2hg38Markers"
+pathdvdf <- "D:/Jingru/deconv/Data"
+pathmeth <- "D:/Jingru/methylation"
+pathref <- "D:/Jingru/references"
+
+library(dplyr)
+library(tidyverse)
+library(minfi)
+library(openxlsx)
+
+library(randomForest)
+library(rmarkdown)
+library(glmnet)
+#do parallel
+library(parallel)
+library(doParallel)
+#install.packages("doMC", repos="http://R-Forge.R-project.org")
+library(doMC)
+library(HandTill2001) # Multiple Class Area under ROC Curve
+#install.packages("ranger")
+library(ranger)
+
+folds <- 5
+ntrees <- 500  
+cores <- 20
+seed <- 76803149
+p <- 5000   
+
+#load results
+source(file.path(pathmeth,"mnp_training-master/R","multi_brier.R"))
+source(file.path(pathmeth,"mnp_training-master/R","multi_logloss.R"))
+
+
+```
+
+# calibration
+
+```{r}
+
+message("loading data ...",Sys.time())
+message("loading preprocessed data ...",Sys.time())
+
+load(file=file.path(pathmeth,"TCGA",
+                    "24-03-08-TCGA.sub.array_anno_hg38_betas_60k_t250_TCGA.MESO.SarCtrl.Rdata"))
+#TCGA_hg38_betas.sub.test, anno_TCGA_sub.test
+
+anno_TCGA.array$TCGA_Project_mcf <- anno_TCGA.array$TCGA_Project
+anno_TCGA_sub.test$TCGA_Project_mcf <- anno_TCGA_sub.test$TCGA_Project
+
+load(file.path(pathmeth,"TCGA/training/CV_xr","nfolds.RData"))
+
+load(file=file.path(pathmeth,"TCGA/training/results",
+               paste0("T3","-validation.cv.score.k5_1019test_169TCGA.XR.RData")))
+
+scores <- list()
+idx <- list()
+for(i in 1:length(nfolds)){
+  fname <- paste0("CVfold.",i,".",0,".RData")
+  load(file.path(pathmeth,"TCGA/training/CV_xr",fname))
+  scores[[i]] <- rf.scores
+  idx[[i]] <- nfolds[[i]][[1]][[1]]$test
+}
+scores <- do.call(rbind,scores)
+
+probl <- list()
+for(i in 1:length(nfolds)){
+  fname <- paste0("probsCVfold.",i,".",0,".RData")
+  load(file.path(pathmeth,"TCGA/training/CV_xr",fname))
+  probl[[i]] <- probs
+}
+probs <- do.call(rbind,probl)
+
+idx <- unlist(idx)
+y <- anno_TCGA.array$TCGA_Project_mcf[idx]        
+
+ys <- colnames(scores)[apply(scores,1,which.max)]
+yp <- colnames(probs)[apply(probs,1,which.max)]
+
+errs <- sum(y!=ys)/length(y)
+errp <- sum(y!=yp)/length(y)
+
+ys.score <- as.data.frame(apply(scores, 1, function(x) max(x, na.rm = TRUE)))
+yp.score <- as.data.frame(apply(probs, 1, function(x) max(x, na.rm = TRUE)))
+score_compare <- cbind(yp.score,ys.score)
+colnames(score_compare) <- c("pred_cal","pred_orig")
+
+message("overall misclassification error scores: ",errs)
+ 
+message("overall misclassification error calibrated: ",errp)
+
+message("fitting final calibration model ...",Sys.time())
+
+# save(scores,probs,y,ys,yp,score_compare,
+#      file=file.path(pathmeth,"TCGA/training/results",
+#                     paste0("T3","-CVresults_subXR24346_2508samp.RData")))
+
+message("generating report ...",Sys.time())
+
+
+# calculates the AUC statistic for a multiple class response
+AUCscores <- HandTill2001::auc(
+  HandTill2001::multcap(response=as.factor(y),predicted=scores)) #0.99503
+AUCprobs <-  HandTill2001::auc(
+  HandTill2001::multcap(response=as.factor(y),predicted=probs)) #0.99708
+
+briers <- brier(scores,y)
+brierp <- brier(probs,y) 
+
+logls <- mlogloss(scores,y)
+loglp <- mlogloss(probs,y) 
+
+out <- cbind(c(AUCscores,AUCprobs),c(errs,errp),c(briers,brierp),c(logls,loglp))
+colnames(out) <- c("AUC","misclassification","brier score","logloss")
+rownames(out) <- c("raw scores","calibrated scores")
+out
+
+# write.xlsx(as.data.frame(out), file=file.path(pathmeth, "TCGA/training/results",
+#    paste0("T3","-CVresults_subXR24346_2508samp_report.xlsx")), rowNames=T)
+
+```
