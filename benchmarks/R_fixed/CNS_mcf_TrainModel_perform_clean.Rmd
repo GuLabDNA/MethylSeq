@@ -1,0 +1,134 @@
+---
+title: "chk_final_perform"
+author: "Jingru Yu"
+date: '2024-05-29'
+output: html_document
+---
+
+# load packages
+```{r setup, include=FALSE}
+rm(list=ls())
+
+library(minfi)
+library(openxlsx)
+library(tidyverse)
+library(dplyr)
+library(stringr)
+library(data.table) # setDT
+library(tibble) #tibble::rownames_to_column
+library(writexl)
+
+library(randomForest)
+library(rmarkdown)
+library(glmnet)
+#do parallel
+library(parallel)
+library(doParallel)
+#install.packages("doMC", repos="http://R-Forge.R-project.org")
+library(doMC)
+library(HandTill2001) # Multiple Class Area under ROC Curve
+#install.packages("ranger")
+library(ranger)
+
+# load functions
+pathmeth <- "D:/Jingru/methylation"
+pathdvdf <- "D:/Jingru/deconv/Data"
+pathref <- "D:/Jingru/references"
+```
+
+```{r setParameters}
+options(max.print = 1000)
+options(stringsAsFactors = FALSE)
+options(scipen = 999999999)
+
+folds <- 5
+ntrees <- 500
+cores <- 20
+seed <- 78031495
+p <- 5000 
+p_filter1 <- 10000 
+```
+
+#load results
+```{r}
+
+#####################################
+#CV_xr_mcf
+
+message("loading data ...",Sys.time())
+load(file=file.path(pathmeth,"CNStumors", "24-06-21-CNStumor_annotation_train.test.all.RData"))
+     
+y <- anno_train.test$TCGA_Project
+
+load(file.path(pathmeth,"mnp_training-master/CV_xr_mcf","nfolds.RData"))
+
+load(file=file.path(pathmeth,"CNStumors/GSE109379_RAW_validation",
+               paste0("T3","-validation.cv.score.k5_1104test_29CNS.XR.RData")))
+
+scores <- list()
+idx <- list()
+for(i in 1:length(nfolds)){
+  fname <- paste0("CVfold.",i,".",0,".RData")
+  load(file.path(pathmeth,"mnp_training-master/CV_xr_mcf",fname))
+  scores[[i]] <- rf.scores
+  idx[[i]] <- nfolds[[i]][[1]][[1]]$test
+}
+scores <- do.call(rbind,scores)
+
+probl <- list()
+for(i in 1:length(nfolds)){
+  fname <- paste0("probsCVfold.",i,".",0,".RData")
+  load(file.path(pathmeth,"mnp_training-master/CV_xr_mcf",fname))
+  probl[[i]] <- probs
+}
+probs <- do.call(rbind,probl)
+
+idx <- unlist(idx)
+y <- anno_all$Group[idx]
+
+ys <- colnames(scores)[apply(scores,1,which.max)]
+yp <- colnames(probs)[apply(probs,1,which.max)]
+
+yp.score <- as.data.frame(apply(probs, 1, function(x) max(x, na.rm = TRUE)))
+ys.score <- as.data.frame(apply(scores, 1, function(x) max(x, na.rm = TRUE)))
+
+y.true <- as.data.frame(y)
+
+score_compare <- cbind(y.true, ys.score, yp.score)
+colnames(score_compare) <- c("true","pred_orig","pred_cal")
+
+errs <- sum(y!=ys)/length(y)
+errp <- sum(y!=yp)/length(y)
+
+message("overall misclassification error scores: ",errs)
+#0.0210639057479472
+message("overall misclassification error calibrated: ",errp)
+#0.00963941449482328
+message("fitting final calibration model ...",Sys.time())
+
+save(scores,probs,y,ys,yp,score_compare,
+     file=file.path(pathmeth,"mnp_training-master/results","T3-CVresults_mcf_xr.RData"))
+
+message("generating report ...",Sys.time())
+
+# calculates the AUC statistic for a multiple class response
+AUCscores <- HandTill2001::auc(
+  HandTill2001::multcap(response=as.factor(y),predicted=scores)) #0.99994
+AUCprobs <-  HandTill2001::auc(
+  HandTill2001::multcap(response=as.factor(y),predicted=probs)) #0.99997
+
+briers <- brier(scores,y)
+brierp <- brier(probs,y) 
+
+logls <- mlogloss(scores,y)
+loglp <- mlogloss(probs,y) 
+
+out <- cbind(c(AUCscores,AUCprobs),c(errs,errp),c(briers,brierp),c(logls,loglp))
+colnames(out) <- c("AUC","misclassification","brier score","logloss")
+rownames(out) <- c("raw scores","calibrated scores")
+
+write.xlsx(as.data.frame(out), file=file.path(pathmeth, "mnp_training-master/results", 
+                               "T3-CVresults_mcf_xr_report.xlsx"), rowNames=T)
+```
+
+

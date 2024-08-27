@@ -1,0 +1,430 @@
+---
+title: "012TCGA_validat.calibration_XRdata"
+author: "Jingru Yu"
+date: '2023-07-31'
+output: html_document
+---
+
+1.cross-validation on your training set: (no need here)
+This process will involve splitting your training set into 'k' subsets, training your model on 'k-1' subsets, and then testing the model on the left out '1' subset. This gives us an unbiased estimate of model evaluation metric that helps in understanding how well the model is likely to perform on unseen data.
+
+2.Train the final model on the full training set: 
+You take the model settings (like hyperparameters) that performed the best on average during the cross-validation process and use those settings to train a model on the full training set.
+
+3.Validate the final model on your external test set: 
+You take the final model from step 2, use it to predict the target variable on your external test set, and then compare the predictions with the actual values in your test set to calculate performance metrics.
+
+If use 161 XR samples only, the error is around 0.5.
+
+# load packages
+```{r}
+rm(list=ls())
+
+library(openxlsx)
+library(tidyverse)
+library(dplyr)
+library(stringr)
+library(data.table) # setDT
+library(tibble) #tibble::rownames_to_column
+library(randomForest)
+library(glmnet)
+library(ranger)
+library(writexl)
+
+
+#do parallel
+library(parallel)
+library(doParallel)
+#install.packages("doMC", repos="http://R-Forge.R-project.org")
+library(doMC)
+library(HandTill2001) # Multiple Class Area under ROC Curve
+
+### function cbind.fill, combine cols with different lengths
+cbind.fill<-function(...){
+    nm <- list(...) 
+    nm<-lapply(nm, as.matrix)
+    n <- max(sapply(nm, nrow)) 
+    do.call(cbind, lapply(nm, function (x) 
+    rbind(x, matrix(, n-nrow(x), ncol(x))))) 
+}
+
+# Function to get column names with highest values
+  getTopThree <- function(df) {
+      
+  # Apply a function to each row of the dataframe
+  topThree <- apply(df, 1, function(row) {
+    # Sort the row in decreasing order to get the top 3 values
+    top_index <- order(-row)[1:3]
+    # Extract the top 3 values
+    values <- row[top_index]
+    # Get the names of the columns containing the top 3 values
+    names <- names(df)[top_index]
+    # Return a list containing the names and values
+    data.frame(top1_cal_label=names[1],top1_cal_score=values[1],
+               top2_cal_label=names[2],top2_cal_score=values[2],
+               top3_cal_label=names[3],top3_cal_score=values[3])
+
+  })
+  return(topThree)
+  }
+  
+# load functions
+pathmeth <- "D:/Jingru/methylation"
+pathdvdf <- "D:/Jingru/deconv/Data"
+pathref <- "D:/Jingru/references"
+
+source(file.path(pathmeth,"mnp_training-master/R","makefolds.R"))
+source(file.path(pathmeth,"mnp_training-master/R","train.R"))
+source(file.path(pathmeth,"mnp_training-master/R","calculateCVfold.R"))
+source(file.path(pathmeth,"mnp_training-master/R","batchadjust.R"))
+source(file.path(pathmeth,"mnp_training-master/R","MNPprocessIDAT_functions.R"))
+```
+
+#external validation set, our real samples
+
+```{r setParameters}
+options(max.print = 1000)
+options(stringsAsFactors = FALSE)
+options(scipen = 999999999)
+
+folds <- 5
+ntrees <- 500  
+cores <- 20
+seed <- 76803149
+p <- 5000 
+p_filter1 <- 15000 
+```
+
+# Train the final model on the full training set
+
+```{r TrainFullModel}
+rm(.Random.seed, envir=globalenv())
+
+#1. load betas of training set
+load(file=file.path(pathmeth,"TCGA",
+                    "24-03-08-TCGA.sub.array_hg38_betas_60k_t250_TCGA.MESO.SarCtrl.Rdata"))
+#TCGA_hg38_betas.array, anno_TCGA.array
+
+#intersect with XR covered CpGs
+load(file=file.path(pathref,"diffmeth",
+  "array.450k.hg38_XRfixed.interBlocks_v2.RData")) #259845
+
+#filter probes
+CG_df <- as.data.frame(colnames(TCGA_hg38_betas.array))
+CG_df$flag="df"
+colnames(CG_df)[1]="CG"
+CG_df_m <- merge(CG_df,array.450k.hg38_XRfixed.interBlocks,by="CG") #24346
+
+TCGA_hg38_betas.array_filter <- TCGA_hg38_betas.array[,CG_df_m$CG] #24346
+
+
+#2. load betas of test set
+load(file=file.path(pathmeth,"TCGA",
+                    "24-03-08-TCGA.sub.array.test_hg38_betas_60k_t250_TCGA.MESO.SarCtrl.Rdata"))
+#TCGA_hg38_betas.sub.test, anno_TCGA_sub.test
+TCGA_betas.test <- TCGA_hg38_betas.sub.test[,CG_df_m$CG]
+
+TCGA_test_trans <- as.data.frame(t(TCGA_betas.test))
+TCGA_test_trans$CG=colnames(TCGA_betas.test)
+
+anno_TCGA.array$TCGA_Project_mcf <-anno_TCGA.array$TCGA_Project
+anno_TCGA_sub.test$TCGA_Project_mcf <- anno_TCGA_sub.test$TCGA_Project
+#======================
+#3. combine samples
+
+#remove controls
+co_csf <- read.xlsx("D:/Jingru/deconv/Data/XR_BFs/sample_info_v2.xlsx",
+                      sheet=4, skipEmptyRows=FALSE, colNames = TRUE)
+
+rm1 <- c("SCF098vXR22B-10cov.TCGA60k_original",
+        "SCF705vXR22B-10cov.TCGA60k_original",
+        "SCF788vXR22B-10cov.TCGA60k_original",
+        "SCF837vXR22B-10cov.TCGA60k_original",
+        "SCF919XR21B-10cov.TCGA60k_original",
+        "SCF923XR21B-10cov.TCGA60k_original",co_csf$Sentrix_ID)
+
+anno_add_cns <- read.xlsx("D:/Jingru/deconv/Data/XR_BFs/sample_info_v2.xlsx",
+                       sheet=6, skipEmptyRows=FALSE, colNames = TRUE)
+anno_add_cns$TCGA_Project_mcf <- anno_add_cns$TCGA_Project
+anno_add_cns$Sentrix_ID_TCGA <- paste0(
+  sapply(str_split(anno_add_cns$Sentrix_ID, "-",  n = 2), `[`, 1),"-10cov.TCGA60k_original")
+rm2 <- anno_add_cns$Sentrix_ID_TCGA[7:29]
+
+load(file=file.path(pathdvdf,"XR_BFs",
+                    "24-04-18-allsamp_TCGA_betas.ImpByTest.k5_trans.RData"))
+#allsamp_betas_TCGA_trans
+
+samp_betas_trans2 <- 
+  allsamp_betas_TCGA_trans[!(rownames(allsamp_betas_TCGA_trans) %in% c(rm1,rm2)), ]
+dim(samp_betas_trans2) #183 24346
+
+anno_add <- read.xlsx("D:/Jingru/deconv/Data/XR_BFs/sample_info_v2.xlsx",
+                       sheet=5, skipEmptyRows=FALSE, colNames = TRUE)
+anno_add$TCGA_Project_mcf <- anno_add$TCGA_Project
+anno_add$TCGA_Project_subgrp <- anno_add$TCGA_Project
+anno_add_fil <- subset(anno_add, !Sentrix_ID %in% c(rm1,rm2))
+
+#4. combine our sample with the test set, including annotation file
+
+anno_test2 <- anno_TCGA_sub.test %>% 
+  select(TCGA_ID,Sentrix_ID,material,TCGA_Project,TCGA_Project_subgrp,TCGA_Project_mcf,purity.abs)
+anno_test_final <- rbind(anno_test2,anno_add_fil[,-6])
+
+#4. get the whole dataset, and extract training and test set
+  anno_TCGA.array$or<- 1:nrow(anno_TCGA.array)
+  anno_test_final$or <- (nrow(anno_TCGA.array)+1):(nrow(anno_TCGA.array)+nrow(anno_test_final))
+  
+  anno_train.test <- rbind(anno_TCGA.array,anno_test_final)
+  anno_train.test <- anno_train.test[order(anno_train.test$or),]
+  y <- anno_train.test$TCGA_Project_mcf
+  
+  df <- rbind(TCGA_hg38_betas.array_filter,TCGA_betas.test,samp_betas_trans2) %>%
+    mutate_if(is.character, as.numeric) # Remove NAs if any
+  
+  # write_xlsx(anno_train.test, file.path(pathdvdf,"XR_BFs",
+  #         "anno_TCGA_3717train.test.xlsx"),
+  #          col_names = TRUE,format_headers = TRUE)
+  
+  # sd pre filtering to 20k probes, to speed up the example, by rows instead of columns
+  df_filter <- df[,order(-apply(df,2,sd))[1:p_filter1]]
+  
+  or_index <- match(anno_train.test$Sentrix_ID, rownames(df_filter))
+ 
+  # Order the data frame by the index
+  df_filter <- df_filter[or_index, ]
+  
+  indextrain <- 1:nrow(TCGA_hg38_betas.array_filter)
+  x.train <- df_filter[indextrain, ]
+  x.test <- df_filter[-indextrain, ]
+  y.train <- as.factor(y[indextrain])
+  y.test <- as.factor(y[-indextrain])
+  
+  
+```
+
+```{r train}
+  message("performing variable selection ...",Sys.time())
+  message("cores: ",cores)
+  message("ntrees: ",ntrees)  
+  message("n: ",nrow(x.train))
+  message("p: ",ncol(x.train))  
+
+load(file.path(pathmeth,"TCGA/training/CV_xr","nfolds.RData"))
+
+scores <- list()
+idx <- list()
+for(i in 1:length(nfolds)){
+  fname <- paste0("CVfold.",i,".",0,".RData")
+  load(file.path(pathmeth,"TCGA/training/CV_xr",fname))
+  scores[[i]] <- rf.scores
+  idx[[i]] <- nfolds[[i]][[1]][[1]]$test
+}
+scores <- do.call(rbind,scores)
+
+idx <- unlist(idx)
+y.cv <- anno_TCGA.array$TCGA_Project_mcf[idx]    
+
+
+  RFres_TCGA <- function(i, seed){
+  rm(.Random.seed, envir=globalenv())
+  
+#5. Train the random forest model on the training set
+  rf.varsel <- rfp(x=x.train, y=as.factor(y.train),
+                   mc=cores, ntree=ntrees,
+                   sampsize=rep(min(table(as.factor(y.train))),
+                                length(table(as.factor(y.train)))),
+                   importance=TRUE)
+
+# save selection forest
+  save(rf.varsel,
+       file=file.path(pathmeth, "TCGA/training/results",
+                      paste0(i,"-rf.varsel.k5_2508train_onlyTCGA.XR.RData")))
+
+# load(file=file.path(pathmeth, "TCGA/training/results",
+#                     "rf.varsel.k5_2508train_onlyTCGA.XR.RData"))
+ 
+   # get permutation variable importance
+  imp.meandecrease <- rf.varsel$importance[,dim(rf.varsel$importance)[2]-1]
+  
+  # reduce data matrix
+  or <- order(imp.meandecrease,decreasing=T)
+
+  rf.pred <- randomForest(y.train ~ ., data=x.train[,or[1:p]],
+                        ntree=ntrees,
+                        strata=y.train,
+                        mtry=sqrt(ncol(x.train)),
+                        sampsize=rep(min(table(y.train)),length(table(y.train))),
+                        proximity=TRUE,
+                        oob.prox=TRUE,
+                        importance=TRUE,
+                        keep.inbag=TRUE,
+                        do.trace=FALSE,
+                        seed=seed)
+ save(rf.pred,
+       file=file.path(pathmeth, "TCGA/training/results",
+                      paste0(i,"-rf.pred.k5_2508train_onlyTCGA.XR.RData")))
+# The output of the function, will be an object of class randomForest 
+# that contains all the information about the fitted random forest model, and
+# can be used for making predictions with new data.  
+
+
+#6. Validate the final model on your external test set
+# Calibration, use the RF-cv scores of training set
+rm(.Random.seed, envir=globalenv())
+set.seed(seed,"L'Ecuyer")
+ 
+cl <- makeCluster( 20 )  
+registerDoParallel(cl) 
+
+  # fit multinomial logistic ridge regression model
+  suppressWarnings(cv.calfit <- 
+                   cv.glmnet(y=y.cv, x=scores, family="multinomial",
+                             type.measure="mse", alpha=0, nlambda=100,
+                             lambda.min.ratio=10^-6, parallel=TRUE))
+stopCluster(cl)    
+
+  #7. Predict on the test set using the trained model
+  rf.scores <- predict(rf.pred, newdata=x.test[,colnames(x.train[,or[1:p]])],type="prob")
+#type = c("response", "terms"), 
+  
+  err <- sum(colnames(rf.scores)[apply(rf.scores,1,which.max)]!=y.test)/nrow(x.test)
+  colnames(rf.scores)
+  message("misclassification error: ",err)
+  
+#8. refit the cv.calfit model to get the calibrated score
+  message("calibrating raw scores",Sys.time())
+  probs <- predict(cv.calfit$glmnet.fit,newx=rf.scores,type="response",
+                   s=cv.calfit$lambda.1se)[,,1] 
+  # use lambda estimated by 10fold CVlambda
+ 
+  # Compute accuracy
+  err2 <- sum(colnames(probs)[apply(probs,1,which.max)]!=y.test)/nrow(anno_test_final)
+  print(paste("err2: ", round(err2, 4)))
+  
+tops <- getTopThree(as.data.frame(probs))
+
+tops_df <- do.call(rbind, lapply(tops, data.frame, stringsAsFactors = FALSE))
+tops_df <- data.frame(tops_df)
+tops_df$Sentrix_ID <- rownames(tops_df)
+
+ys <- colnames(rf.scores)[apply(rf.scores,1,which.max)]
+ys.score <- as.data.frame(apply(rf.scores, 1, function(x) max(x, na.rm = TRUE)))
+
+yp <- colnames(probs)[apply(probs,1,which.max)]
+yp.score <- as.data.frame(apply(probs, 1, function(x) max(x, na.rm = TRUE)))
+
+
+m2 <- merge(anno_train.test,tops_df,by="Sentrix_ID",all.y=T)
+score_compare1<- cbind(rownames(probs),ys,ys.score)
+colnames(score_compare1) <- c("Sentrix_ID","pred_orig_label","pred_orig_score")
+score_compare1$grp=c(rep("Array", times=nrow(anno_TCGA_sub.test)),
+                    c(rep("XR-methylSeq", times=nrow(anno_add_fil))))
+#score_compare1$grp=c(rep("XR-methylSeq", times=nrow(anno_add_fil)))
+score_compare2 <- merge(m2,score_compare1,by="Sentrix_ID")
+ca_cal <- subset(score_compare2,grp=="XR-methylSeq")
+ca_cal$ref="TCGA"
+ca_cal$test=i
+
+errs <- sum(y.test!=ys)/nrow(anno_test_final)
+errp <- sum(y.test!=yp)/nrow(anno_test_final)
+message("overall misclassification error scores: ",errs)
+message("overall misclassification error calibrated: ",errp)
+
+#9. Save results
+save(rf.scores,probs,y,ys,yp,score_compare2,
+     file=file.path(pathmeth,"TCGA/training/results",
+                    paste0(i,"-validation.cv.score.k5_1019test_169TCGA.XR.RData")))
+
+write_xlsx(score_compare2, file.path(pathdvdf,"XR_BFs",
+           paste0(i,"-score.comp.k5_TCGA_1019test_169TCGA.XR.xlsx")),
+           col_names = TRUE,format_headers = TRUE)
+
+
+write_xlsx(ca_cal, file.path(pathdvdf,"XR_BFs",
+           paste0(i,"-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx")),
+           col_names = TRUE,format_headers = TRUE)
+#score_compare has the calibrated and original score
+#yp is the calibrated predicted groups, ys is the original predicted groups
+return(ca_cal)
+  }
+  
+test1 <- RFres_TCGA(i="T1",seed=3992685)
+test2 <- RFres_TCGA(i="T2",seed=73314698)
+test3 <- RFres_TCGA(i="T3",seed=83014276) #use
+test4 <- RFres_TCGA(i="T4",seed=52365861)
+test5 <- RFres_TCGA(i="T5",seed=43279146)
+
+test6 <- RFres_TCGA(i="T6",seed=82821908)
+test7 <- RFres_TCGA(i="T7",seed=89765847)
+test8 <- RFres_TCGA(i="T8",seed=3646149)
+test9 <- RFres_TCGA(i="T9",seed=62838125)
+test10 <- RFres_TCGA(i="T10",seed=42043574)
+
+
+test1 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T1-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+test2 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T2-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+test3 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T3-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+test4 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T4-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+test5 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T5-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+test6 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T6-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+test7 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T7-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+test8 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T8-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+test9 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T9-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+test10 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
+          "T10-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+
+
+df_ls <- 
+  list(test1, test2, test3, test4, test5, test6, test7, test8, test9, test10)
+
+blk <- data.frame()
+
+for (i in (1:10)){
+  
+test_res1 <- df_ls[[i]] %>% 
+  mutate(BF_id=sapply(str_split(TCGA_ID, "X",  n = 2), `[`, 1),
+ Classification = ifelse(TCGA_Project_mcf==top1_cal_label & purity.abs>=0.5 & top1_cal_score>=0.3, "Yes", (ifelse(TCGA_Project_mcf==top1_cal_label & purity.abs>=0.5 & top1_cal_score<0.3, "Indeterminate",
+                                                                                                     (ifelse(TCGA_Project_mcf!=top1_cal_label & purity.abs>=0.5 & top1_cal_score>=0.3,"No",
+                          (ifelse(TCGA_Project_mcf!=top1_cal_label & purity.abs>=0.5 & top1_cal_score<0.3, "Indeterminate","N/a")))))))) %>% 
+  filter(!BF_id %in% c("BF3027", "BF3187", "BF3369", "BF3549", "BF3785", "BF560"))
+
+test_res2 <- subset(test_res1,!substr(TCGA_ID,1,3) %in% c("COA","BRC","GBM") & 
+  !TCGA_ID %in% c("BF3713dil100ngXR23B","BF3713dil1ngXR23B","BF3713dil250ngXR23B"))
+
+test_out<- 
+  data.frame(samp_id=i,
+             correct_prec=unname(table(test_res2$Classification)["Yes"])/nrow(df_ls[[i]]),
+             notsure_prec=unname(table(test_res2$Classification)["Indeterminate"])/nrow(df_ls[[i]]),
+             wrong_prec=unname(table(test_res2$Classification)["No"])/nrow(df_ls[[i]]))
+
+blk <- rbind(blk,test_out)
+
+}
+median(blk$wrong_prec)
+median(blk$correct_prec)
+
+write_xlsx(blk, file.path(pathdvdf,"XR_BFs",
+          paste0("SeedInvestigation-score.comp.k5_TCGA_169samples.xlsx")),
+           col_names = TRUE,format_headers = TRUE)
+```
+
+

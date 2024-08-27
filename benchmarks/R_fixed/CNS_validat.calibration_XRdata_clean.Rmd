@@ -1,0 +1,422 @@
+---
+title: "CNS_validat.calibration_XRdata"
+author: "Jingru Yu"
+date: '2023-07-31'
+output: html_document
+---
+
+1.cross-validation on your training set: (no need here)
+This process will involve splitting your training set into 'k' subsets, training your model on 'k-1' subsets, and then testing the model on the left out '1' subset. This gives us an unbiased estimate of model evaluation metric that helps in understanding how well the model is likely to perform on unseen data.
+
+2.Train the final model on the full training set: 
+You take the model settings (like hyperparameters) that performed the best on average during the cross-validation process and use those settings to train a model on the full training set.
+
+3.Validate the final model on your external test set: 
+You take the final model from step 2, use it to predict the target variable on your external test set, and then compare the predictions with the actual values in your test set to calculate performance metrics.
+
+# load packages
+```{r}
+rm(list=ls())
+
+library(minfi)
+library(GEOquery)
+library(limma) #limma package used to read in raw data, removeBatchEffect
+library(openxlsx)
+library(tidyverse)
+library(dplyr)
+library(stringr)
+library(data.table) # setDT
+library(tibble) #tibble::rownames_to_column
+library(writexl)
+
+library(randomForest)
+library(rmarkdown)
+library(glmnet)
+#do parallel
+library(parallel)
+library(doParallel)
+#install.packages("doMC", repos="http://R-Forge.R-project.org")
+library(doMC)
+library(HandTill2001) # Multiple Class Area under ROC Curve
+#install.packages("ranger")
+library(ranger)
+
+### function cbind.fill, combine cols with different lengths
+cbind.fill<-function(...){
+    nm <- list(...) 
+    nm<-lapply(nm, as.matrix)
+    n <- max(sapply(nm, nrow)) 
+    do.call(cbind, lapply(nm, function (x) 
+    rbind(x, matrix(, n-nrow(x), ncol(x))))) 
+}
+
+# Function to get column names with highest values
+  getTopThree <- function(df) {
+      
+  # Apply a function to each row of the dataframe
+  topThree <- apply(df, 1, function(row) {
+    # Sort the row in decreasing order to get the top 3 values
+    top_index <- order(-row)[1:3]
+    # Extract the top 3 values
+    values <- row[top_index]
+    # Get the names of the columns containing the top 3 values
+    names <- names(df)[top_index]
+    # Return a list containing the names and values
+    data.frame(top1_cal_label=names[1],top1_cal_score=values[1],
+               top2_cal_label=names[2],top2_cal_score=values[2],
+               top3_cal_label=names[3],top3_cal_score=values[3])
+
+  })
+  return(topThree)
+}
+
+# load functions
+pathmeth <- "D:/Jingru/methylation"
+pathdvdf <- "D:/Jingru/deconv/Data"
+pathref <- "D:/Jingru/references"
+
+source(file.path(pathmeth,"mnp_training-master/R","makefolds.R"))
+source(file.path(pathmeth,"mnp_training-master/R","train.R"))
+source(file.path(pathmeth,"mnp_training-master/R","calculateCVfold.R"))
+source(file.path(pathmeth,"mnp_training-master/R","batchadjust.R"))
+source(file.path(pathmeth,"mnp_training-master/R","MNPprocessIDAT_functions.R"))
+source(file.path(pathmeth,"mnp_training-master/R","calculateCVfold_nobatch.R"))
+
+```
+
+#external validation set, our real samples
+
+```{r setParameters}
+options(max.print = 1000)
+options(stringsAsFactors = FALSE)
+options(scipen = 999999999)
+
+folds <- 5
+ntrees <- 500
+cores <- 20
+seed <- 78031495
+p <- 5000 
+p_filter1 <- 10000 
+```
+
+# Train the final model on the full training set
+
+```{r TrainFullModel}
+rm(.Random.seed, envir=globalenv())
+
+#1. load betas of training set
+load(file=file.path(pathmeth,"CNStumors","CNS_hg38_betas_32k_v2.Rdata"))
+# get CNStumor_hg38_betas, anno_all
+
+colnames(anno_all)
+anno_train <- anno_all %>% dplyr::select(geo_accession,supplementary_file,
+                      `material:ch1`,`methylation class:ch1`,Group)
+anno_train1 <- anno_train %>%
+  mutate(temp1=sapply(str_split(supplementary_file, "_",  n = 4), `[`, 2),
+         temp2=sapply(str_split(supplementary_file, "_",  n = 4), `[`, 3),
+         Sentrix_ID=paste0(geo_accession,"_",temp1,"_",temp2),
+         Sentrix_ID_short=paste0(temp1,"_",temp2),
+         TCGA_Project = Group)
+
+anno_train_purity <- read.xlsx(file.path(pathmeth,"CNStumors","sample_purity_age.xlsx"),
+                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+colnames(anno_train_purity) <- anno_train_purity[1,]
+anno_train_purity1 <- anno_train_purity[-1,c(2,13)]
+colnames(anno_train_purity1) <- c("Sentrix_ID_short","purity.abs")
+anno_train_purity1$purity.abs <- round(as.numeric(anno_train_purity1$purity.abs),3)
+anno_train2 <- merge(anno_train1,anno_train_purity1,by="Sentrix_ID_short")
+
+anno_train2 <- anno_train2 %>% dplyr::select(geo_accession,Sentrix_ID,TCGA_Project,
+                      `material:ch1`,`methylation class:ch1`,purity.abs)
+colnames(anno_train2) <- c("TCGA_ID","Sentrix_ID","TCGA_Project",
+                      "material","TCGA_Project_subgrp","purity.abs")
+anno_train2$TCGA_Project_mcf <- anno_train2$TCGA_Project
+
+#intersect with XR covered CpGs
+load(file=file.path(pathref,"diffmeth",
+  "array.450k.hg38_XRfixed.interBlocks_v2.RData")) #259845
+
+#filter probes
+CG_df2 <- as.data.frame(CNStumor_hg38_betas$CG)
+CG_df2$flag="df"
+colnames(CG_df2)[1]="CG"
+CG_df_m2 <- merge(CG_df2,array.450k.hg38_XRfixed.interBlocks,by="CG") 
+
+CNStumor_betas_filter <- CNStumor_hg38_betas[CNStumor_hg38_betas$CG %in% CG_df_m2$CG,]
+
+betas_trans <- as.data.frame(t(CNStumor_betas_filter))
+colnames(betas_trans) <- betas_trans[1,]
+betas_trans <- betas_trans[-1,]
+
+
+##################################
+#2. load betas of test set
+load(file=file.path(pathmeth,"CNStumors/GSE109379_RAW_validation",
+                      "CNS_hg38_betas_32k.test.Rdata"))
+#CNS_hg38_betas_32k.test, anno_test
+#row is sample, and col is CG
+#NO transpose
+CNStumor_betas.test <- CNS_hg38_betas_32k.test[,CG_df_m2$CG]
+
+anno_test2 <- anno_test %>% dplyr::select(geo_accession,supplementary_file,
+                      `material:ch1`,`methylation class:ch1`,Group)
+anno_test2 <- anno_test2 %>%
+  mutate(temp1=sapply(str_split(supplementary_file, "_",  n = 4), `[`, 2),
+         temp2=sapply(str_split(supplementary_file, "_",  n = 4), `[`, 3),
+         Sentrix_ID=paste0(geo_accession,"_",temp1,"_",temp2),
+         Sentrix_ID_short=paste0(temp1,"_",temp2),
+         TCGA_Project = Group,
+         purity.abs=NA)
+
+anno_test2 <- anno_test2[,c(1,8,3,4,5,10,11)]
+
+colnames(anno_test2) <- 
+  c("TCGA_ID","Sentrix_ID","material","TCGA_Project_subgrp",
+    "TCGA_Project_mcf","TCGA_Project","purity.abs")
+
+
+####################################
+#3. get the samples 
+anno_add_cns <- read.xlsx("D:/Jingru/deconv/Data/XR_BFs/sample_info_v2.xlsx",
+                       sheet=6, skipEmptyRows=FALSE, colNames = TRUE)
+#anno_add_cns <- anno_add_cns[-c(7:12),]
+
+load(file=file.path(pathdvdf,"XR_BFs",
+                    "24-04-18-allsamp_CNStumor_betas.ImpByTest.k5_trans.RData"))
+
+allsamp_betas_filter <- 
+  allsamp_betas_CNStumor_trans[
+    rownames(allsamp_betas_CNStumor_trans) %in% anno_add_cns$Sentrix_ID,
+    CG_df_m2$CG]
+
+#4. combine our sample with the test set, including annotation file
+anno_test_final <- rbind(anno_test2,anno_add_cns)
+rownames(anno_test_final) <- anno_test_final$Sentrix_ID
+
+#anno_train2 <- anno_CNStumor_co
+anno_train2$or<- 1:nrow(anno_train2)
+anno_test_final$or <- (nrow(anno_train2)+1):(nrow(anno_train2)+nrow(anno_test_final))
+  
+  anno_train.test <- rbind(anno_train2,anno_test_final)
+  anno_train.test <- anno_train.test[order(anno_train.test$or),]
+  y <- anno_train.test$TCGA_Project
+  
+#row is sample, col is CG
+df <- rbind(betas_trans,CNStumor_betas.test,allsamp_betas_filter) %>% 
+  mutate_if(is.character, as.numeric) 
+
+  # sd pre filtering to 10k probes, to speed up the example, by rows instead of columns
+  df_filter <- df[,order(-apply(df,2,sd))[1:p_filter1]]
+  
+  or_index <- match(anno_train.test$Sentrix_ID, rownames(df_filter))
+ 
+  # Order the data frame by the index
+  df_filter <- df_filter[or_index, ]
+
+  indextrain <- 1:nrow(betas_trans)
+  x.train <- df_filter[indextrain, ]
+  x.test <- df_filter[-indextrain, ]
+  y.train <- as.factor(y[indextrain])
+  y.test <- as.factor(y[-indextrain])
+  
+  # save(x.train,y.train,
+  #      file=file.path(pathmeth, "CNStumors/GSE109379_RAW_validation","x.train_2801.RData"))
+  # 
+```
+
+
+```{r train}
+  message("performing variable selection ...",Sys.time())
+  message("cores: ",cores)
+  message("ntrees: ",ntrees)  
+  message("n: ",nrow(x.train))
+  message("p: ",ncol(x.train))  
+  
+load(file.path(pathmeth,"mnp_training-master/CV_xr_mcf","nfolds.RData"))
+
+scores <- list()
+idx <- list()
+for(i in 1:length(nfolds)){
+  fname <- paste0("CVfold.",i,".",0,".RData")
+  load(file.path(pathmeth,"mnp_training-master/CV_xr_mcf",fname))
+  scores[[i]] <- rf.scores
+  idx[[i]] <- nfolds[[i]][[1]][[1]]$test
+}
+scores <- do.call(rbind,scores)
+
+idx <- unlist(idx)
+y.cv <- anno_all$Group[idx]   #DO NOT CHANGE!!  
+
+rm(.Random.seed, envir=globalenv())
+  
+RFres <- function(i,seed){
+    
+  if(!is.null(seed)) set.seed(seed,"L'Ecuyer")
+
+#5. Train the random forest model on the training set
+  rf.varsel <- rfp(x=x.train, y=as.factor(y.train),
+                   mc=cores, ntree=ntrees,
+                   sampsize=rep(min(table(as.factor(y.train))),
+                                length(table(as.factor(y.train)))),
+                   importance=TRUE)
+
+# save selection forest
+  # save(rf.varsel,
+  #      file=file.path(pathmeth, "CNStumors/GSE109379_RAW_validation",
+  #                     "rf.varsel.k5_onlyCNS.XR_mcf_t1.RData"))
+ 
+   # get permutation variable importance
+  imp.meandecrease <- rf.varsel$importance[,dim(rf.varsel$importance)[2]-1]
+  
+  # reduce data matrix
+  or <- order(imp.meandecrease,decreasing=T)
+
+  message("training classifier ...",Sys.time())
+  message("cores: ",cores)
+  message("ntrees: ",ntrees)  
+  message("n: ",nrow(x.train))
+  message("p: ",p)  
+  
+  rf.pred <- randomForest(y.train ~ ., data=x.train[,or[1:p]],
+                        ntree=ntrees,
+                        strata=y.train,
+                        mtry=sqrt(ncol(x.train)),
+                        sampsize=rep(min(table(y.train)),length(table(y.train))),
+                        proximity=TRUE,
+                        oob.prox=TRUE,
+                        importance=TRUE,
+                        keep.inbag=TRUE,
+                        do.trace=FALSE,
+                        seed=seed)
+ # save(rf.pred,
+ #       file=file.path(pathmeth, "CNStumors/GSE109379_RAW_validation",
+ #                      "rf.pred.k5_onlyCNS.XR_mcf_t1.RData"))
+
+  
+#6. Calibration, use the RF-cv scores of training set
+rm(.Random.seed, envir=globalenv())
+set.seed(seed,"L'Ecuyer")
+
+cl <- makeCluster( 20 )  
+registerDoParallel(cl)
+  # fit multinomial logistic ridge regression model
+  suppressWarnings(cv.calfit <- 
+                   cv.glmnet(y=y.cv, x=scores, family="multinomial",
+                             type.measure="mse", alpha=0, nlambda=100,
+                             lambda.min.ratio=10^-6, parallel=TRUE))
+stopCluster(cl)  
+
+#7. Predict on the test set using the trained model
+  rf.scores <- predict(rf.pred, newdata=x.test[,colnames(x.train[,or[1:p]])],type="prob")
+  
+  err <- sum(colnames(rf.scores)[apply(rf.scores,1,which.max)]!=y.test)/nrow(anno_test_final)
+  
+  message("misclassification error: ",err)
+  
+#8. refit the cv.calfit model to get the calibrated score
+  message("calibrating raw scores",Sys.time())
+  probs <- predict(cv.calfit$glmnet.fit,newx=rf.scores,type="response",
+                   s=cv.calfit$lambda.1se)[,,1] # use lambda estimated by 10fold CVlambda
+  
+  # Compute accuracy
+  err2 <- sum(colnames(probs)[apply(probs,1,which.max)]!=y.test)/nrow(anno_test_final)
+  print(paste("err2: ", round(err2, 4))) 
+
+tops <- getTopThree(as.data.frame(probs))
+
+tops_df <- do.call(rbind, lapply(tops, data.frame, stringsAsFactors = FALSE))
+tops_df <- data.frame(tops_df)
+
+tops_df <- tops_df %>%
+  mutate(Sentrix_ID = rownames(tops_df),
+         TCGA_ID= sapply(str_split(Sentrix_ID, pattern = "-|_",  n = 3), `[`, 1))
+
+
+ys <- colnames(rf.scores)[apply(rf.scores,1,which.max)]
+ys.score <- as.data.frame(apply(rf.scores, 1, function(x) max(x, na.rm = TRUE)))
+
+yp <- colnames(probs)[apply(probs,1,which.max)]
+yp.score <- as.data.frame(apply(probs, 1, function(x) max(x, na.rm = TRUE)))
+
+score_compare1<- cbind(rownames(probs),ys,ys.score)
+colnames(score_compare1) <- c("Sentrix_ID","pred_orig_label","pred_orig_score")
+score_compare1$grp=c(rep("Array", times=nrow(anno_test2)),
+                    c(rep("XR-methylSeq", times=nrow(anno_add_cns))))
+
+m2 <- merge(anno_test_final,tops_df,by="Sentrix_ID",all.y=T)
+ca_cal <- subset(m2,substr(m2$TCGA_ID.x,1,3)!="GSM")
+score_compare2 <- merge(m2,score_compare1,by="Sentrix_ID")
+
+errs <- sum(y.test!=ys)/nrow(anno_test)
+errp <- sum(y.test!=yp)/nrow(anno_test)
+message("overall misclassification error scores: ",errs)
+message("overall misclassification error calibrated: ",errp)
+
+#9. Save results
+save(rf.scores,probs,y,ys,yp,score_compare2,
+     file=file.path(pathmeth,"CNStumors/GSE109379_RAW_validation",
+                    paste0(i,"-validation.cv.score.k5_1104test_29CNS.XR.RData")))
+
+
+ write_xlsx(score_compare2, file.path(pathdvdf,"XR_BFs",
+          paste0(i,"-score.comp.k5_CNStumor_1104test_29CNS.xlsx")),
+           col_names = TRUE,format_headers = TRUE)
+ 
+samp <- score_compare2[score_compare2$grp=="XR-methylSeq",]
+samp$ref="CNStumor"
+samp <- samp[,-15]
+samp$test=i
+colnames(samp)[2]="TCGA_ID"
+write_xlsx(samp, file.path(pathdvdf,"XR_BFs",
+          paste0(i,"-score.comp.k5_CNStumor_29CNSsamples.xlsx")),
+           col_names = TRUE,format_headers = TRUE)
+
+return(samp)
+}
+
+test1 <- RFres(i="T1",seed=3992685) 
+test2 <- RFres(i="T2",seed=73314698)
+test3 <- RFres(i="T3",seed=83014276) #use
+test4 <- RFres(i="T4",seed=52365861)
+test5 <- RFres(i="T5",seed=43279146)
+
+test6 <- RFres(i="T6",seed=82821908)
+test7 <- RFres(i="T7",seed=89765847)
+test8 <- RFres(i="T8",seed=3646149)
+test9 <- RFres(i="T9",seed=62838125)
+test10 <- RFres(i="T10",seed=42043574)
+
+df_ls <- 
+  list(test1, test2, test3, test4, test5, test6, test7, test8, test9, test10)
+blk <- data.frame()
+
+for (i in (1:10)){
+  
+test_res2 <- df_ls[[i]] %>% 
+  mutate(BF_id=sapply(str_split(TCGA_ID, "X",  n = 2), `[`, 1),
+         Classification = ifelse(TCGA_Project_mcf==top1_cal_label 
+                                 & purity.abs>=0.5 & top1_cal_score>=0.3, "Yes",
+                                 (ifelse(TCGA_Project_mcf==top1_cal_label 
+                                         & purity.abs>=0.5 & top1_cal_score<0.3, "Indeterminate",                                                     (ifelse(TCGA_Project_mcf!= top1_cal_label 
+                                          & purity.abs>=0.5 & top1_cal_score>=0.3,"No",
+                          (ifelse(TCGA_Project_mcf!=top1_cal_label 
+                            & purity.abs>=0.5 & top1_cal_score<0.3, "Indeterminate","N/a")))))))) 
+
+test_out<- 
+  data.frame(samp_id=i,
+             correct_prec=unname(table(test_res2$Classification)["Yes"])/nrow(df_ls[[i]]),
+             notsure_prec=unname(table(test_res2$Classification)["Indeterminate"])/nrow(df_ls[[i]]),
+             wrong_prec=unname(table(test_res2$Classification)["No"])/nrow(df_ls[[i]]))
+
+blk <- rbind(blk,test_out)
+
+}
+median(blk$wrong_prec)
+median(blk$correct_prec)
+
+write_xlsx(blk, file.path(pathdvdf,"XR_BFs",
+          paste0("SeedInvestigation-score.comp.k5_CNStumor_29CNSsamples.xlsx")),
+           col_names = TRUE,format_headers = TRUE)
+
+```
+
