@@ -4,7 +4,7 @@ author: "Jingru Yu"
 date: '2023-12-04'
 output: html_document
 
-Update: '2023-07-02'
+#Update: '2023-07-02'
 ---
 
 ```{r load packages}
@@ -77,11 +77,7 @@ print(rmse_res)
 return(rmse_res)
 }
 
-pathmeth <- "D:/Jingru/methylation"
-pathclass <- "D:/Jingru/classification"
-pathct.d <- "D:/Jingru/deconv/v2hg38Markers"
-pathdvdf <- "D:/Jingru/deconv/Data"
-pathsampout <-"D:/Jingru/deconv/Output" 
+pathpro <-"D:/Jingru/deconv/Data/Upload_processed" 
 
 ```
 
@@ -90,7 +86,7 @@ pathsampout <-"D:/Jingru/deconv/Output"
 
 ```{r UXMvs.CelFiE}
 #load processed results
-immune_m <- read.xlsx(file.path(pathsampout,"Output_titration",
+immune_m <- read.xlsx(file.path(pathpro,"deconv",
                           "ImmuneTitrations-deconv_UXMvsCelFiE_clean.xlsx"),
                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 
@@ -156,22 +152,8 @@ p.line5 <- ggplot(data=immune_m,
         text=element_text(size=13, face = "bold")
         )
 
-dat_text <- data.frame(
-  label = c(paste0("RMSE (CpG)=",dmr_rmse1,"\n", "RMSE (frag.)=",uxm_rmse1),
-            paste0("RMSE (CpG)=",dmr_rmse2,"\n", "RMSE (frag.)=",uxm_rmse2),
-            paste0("RMSE (CpG)=",dmr_rmse3,"\n", "RMSE (frag.)=",uxm_rmse3),
-            paste0("RMSE (CpG)=",dmr_rmse4,"\n", "RMSE (frag.)=",uxm_rmse4)),
-  celltype  = c(1,2,3,4))
-
-dat_text$celltype.f <- 
-  factor(as.factor(dat_text$celltype), order=T,levels=c(1,2,3,4),
-         labels=c("Bcell","Granulocyte","MonoMacrophage","Tcell"))
-
 p.line6 <- p.line5 + 
-  geom_abline(intercept=0, slope = 1, color="gray", linetype="dashed", size=0.6) +
-  geom_text(data = dat_text, label=dat_text$label,
-            x=0.001, y = Inf,hjust=0.5,vjust=1.4,
-            inherit.aes = F,size=3) 
+  geom_abline(intercept=0, slope = 1, color="gray", linetype="dashed", size=0.6)
 p.line6
 
 # dev.new()
@@ -190,7 +172,7 @@ p.line6
 
 ```{r cancercells_linechart}
 
-m1 <- read.xlsx(file.path(pathsampout,"Output_titration",
+m1 <- read.xlsx(file.path(pathpro,"deconv",
                           "COAD.BRCA.GBM-deconv.UXM_2scenarios_clean.xlsx"),
                 sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 
@@ -220,29 +202,10 @@ rmse_gbm2 <-GetRMSE(data_se=m1_target,ct_se="Brain",
 rmse_gbm3 <-GetRMSE(data_se=m1_target,ct_se="Brain", 
                     method_se="20 references", decimaln=3)
 
-#prepare labels of ggplot
-dat_text <- data.frame(
-  label3 = c(paste0("RMSE(ref2)=",rmse_brca3),paste0("RMSE(ref2)=",rmse_coad3),
-            paste0("RMSE(ref2)=",rmse_gbm3)),
-  label2 = c(paste0("RMSE(ref1)=",rmse_brca2),paste0("RMSE(ref1)=",rmse_coad2),
-            paste0("RMSE(ref1)=",rmse_gbm2)),
-  grp  = c(1,2,3))
-
-dat_text$grp.f <- factor(as.factor(dat_text$grp), order=T,
-                                  levels=c(1,2,3),
-                                  labels=c("Breast-Luminal-Ep","Colon-Ep","Brain"))
-
-
 #draw line chart
 p.line9 <- ggplot(data=m1_target,
                   aes(x=Actual, y=Predicted, color=method.f)) + 
    geom_abline(intercept=0, slope = 1, color="gray", linetype="dashed", size=0.6) +
-  geom_text(data = dat_text, mapping = aes(label=label2,
-            x=0.1, y = 92,hjust=0,vjust=1.1),
-            inherit.aes = F) +
-  geom_text(data = dat_text, mapping = aes(label=label3,
-            x=0.1, y = 80,hjust=0,vjust=1.1),
-            inherit.aes = F) + 
   geom_point(size =1.35) + 
   geom_line(size = 0.9) +
   scale_color_manual(values=c("#053c5e","#a31621"))+
@@ -279,7 +242,7 @@ p.line9
 
 ```{r plots}
 
-WGBSsamples <- read.xlsx(file.path(pathdvdf, "subsample/Output_benign_titrations",
+WGBSsamples <- read.xlsx(file.path(pathpro, "deconv",
           "WGBSsampleMix_UXMvsCelFiE.xlsx"),
            sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 table(WGBSsamples$origin) #Colon   CSF Liver  Lung 
@@ -376,10 +339,9 @@ se.dot6
 # plasma
 
 ```{r plasmas}
-pathsampout <-"D:/Jingru/deconv/Output" 
 
 #output_test_uxm
-pnorm <- read.csv(file=file.path(pathsampout, "Output_titration",
+pnorm <- read.csv(file=file.path(pathpro, "deconv",
                                 "output_3plasma_9ref_240208.csv"),
                    header = TRUE, sep = ",")
 
@@ -407,7 +369,7 @@ se.long_plot <- se.long %>%
   mutate(
          samp.f = factor(as.factor(Sample_id), order=T,
                 levels=c("P2_perc","pcomb.inXR_mean","pcomb.wgbs_mean","WGBS_Loyfer"),
-                labels=c("XR-methylSeq of Donor P2","CCGGflanks of WGBS2","WGBS2","WGBS1")),
+                labels=c("FLEXseq of Donor P2","CCGGflanks of WGBS2","WGBS2","WGBS1")),
           ct.f=factor(as.factor(CellType),
                        levels=c("Blood-Granul","Blood-Mono+Macro",
                                 "Endothel","Eryth-prog","Liver-Hep",

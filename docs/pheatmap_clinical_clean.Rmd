@@ -274,7 +274,7 @@ aa2
 
 options(scipen = 999999999)
 load(file=file.path(pathpro,"TCGA-CNStumor_training_results",
-                    "T3-validation.cv.score.k5_1019test_169TCGA.XR.RData"))
+                    "T3-validation.cv.score.k5_1019test_169TCGA.RData"))
 
 GetROCvalue <-  function(res_df, class_index){
 bi_pred <- as.data.frame(probs[res_df$Sentrix_ID, class_index])
@@ -471,9 +471,9 @@ pz <- ggplot(res_ca2, aes(x=TF_XR, y=top1_zscore, color=TF_50grp.f)) +
                formula = y ~ x, 
                parse = TRUE) +
   scale_color_manual(values=c("#6497b1","#005b96")) +
-  geom_vline(xintercept = 0.5, linetype="dotted", color = "gray80", size=1) +
-  geom_hline(yintercept = 2, linetype="dashed", color = "gray20", size=1) +
-  geom_hline(yintercept = 3, linetype="dashed", color = "gray70", size=1) +
+  geom_vline(xintercept = 0.5, linetype="dotted", color = "gray80", linewidth=1) +
+  geom_hline(yintercept = 2, linetype="dashed", color = "gray20", linewidth=1) +
+  geom_hline(yintercept = 3, linetype="dashed", color = "gray70", linewidth=1) +
   labs(x = "Tumor purity", y = "Z score") +
   scale_x_continuous(breaks=seq(0, 1, by = 0.2),
                      labels=seq(0, 1, by = 0.2), limits=c(-0.005,1), expand = c(0, 0)) + 
@@ -494,12 +494,12 @@ pz
 
 ```
 
-# Extended Data Figure, array vs. XR
+# Extended Data Figure, array vs. enriched seq
 
 ```{r check all scores}
 score_all1 <- 
   read.xlsx(file.path(pathpro,"TCGA-CNStumor_training_results",
-  "T3-score.comp.k5_TCGA_1019test_169TCGA.XR.xlsx"),
+  "T3-score.comp.k5_TCGA_1019test_169TCGA.xlsx"),
                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 
 table(score_all1$grp)

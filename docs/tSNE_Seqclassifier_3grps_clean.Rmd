@@ -1,5 +1,5 @@
 ---
-title: "tSNE_XRclassifier_3grps"
+title: "tSNESeqclassifier_3grps"
 author: "Jingru Yu"
 date: '2024-06-03'
 output: html_document
@@ -72,11 +72,11 @@ pathsampout="D:/Jingru/deconv/Output"
 
 ```{r tSNE, message=FALSE, warning=FALSE}
 
-samp_clin <- read.xlsx(file.path(pathdvdf,"Upload_processed",
+samp_clin <- read.xlsx(file.path(pathpro,
                               "206samples_all_clin_clean.xlsx"),
                     sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
     
-load(file=file.path(pathdvdf,"Upload_processed/XRclassifier",
+load(file=file.path(pathpro,"Seq_classifier",
                     "24-07-02-TCGA_xr.anno_60k_LUAD.DLBC.CTRL.BRCA.GBM.Rdata"))
 
 anno_train$Sample_tp.2cat <- ifelse(anno_train$Sample_tp.3cat=="FFPE","FFPE","BF")

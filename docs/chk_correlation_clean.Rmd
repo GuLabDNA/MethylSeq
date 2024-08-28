@@ -32,20 +32,8 @@ cbind.fill<-function(...){
     rbind(x, matrix(, n-nrow(x), ncol(x))))) 
 }
 
-pathdvdf <- "D:/Jingru/deconv/Data"
-pathmeth <- "D:/Jingru/methylation"
 pathref <- "D:/Jingru/references"
-pathclass <- "D:/Jingru/classification"
-pathsub <- "W:/User/Jingru/Data/subsample"
-
-#get all CpGs
-allCpG <- as.data.frame(fread(
-  file.path("W:/User/Jingru/Data/allCpG_hg38_only_chr_sorted.bed"),
-  header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="")) 
-colnames(allCpG) <- c("chr","start","end")
-allCpG <- allCpG %>% mutate(startCpG = 1:nrow(allCpG))
-head(allCpG)
-
+pathpro <-"D:/Jingru/deconv/Data/Upload_processed" 
 ```
 
 # Load WGBS/RRBS/XRBS/EPIC of K562
@@ -115,14 +103,15 @@ k562_epic1_chr <- k562_epic1 %>%
 # Load array data
 
 ```{r arrayData}
-load(file.path(pathclass,"Data/array_titration/cancersamp_arrayEPICv2_hg38_s2.RData"))
+load(file.path(pathpro,"large_data","array_samp.K562.3FFPE_beta.RData"))
+#test_betas$CG <- rownames(test_betas)
+# temp1 <- as.data.frame(test_betas[,c("CG","207831650102_R01C01","207831650102_R02C01",
+#                             "207831650102_R03C01")])
+                         
+array_k562.100ng <- as.data.frame(array_samp_beta[,c("CG","207831650102_R01C01")])
+array_k562.250ng <- as.data.frame(array_samp_beta[,c("CG","207831650102_R02C01")])
 
-test_betas$CG <- rownames(test_betas)
-array_k562.100ng <- as.data.frame(test_betas[,c("CG","207831650102_R01C01")])
-array_k562.250ng <- as.data.frame(test_betas[,c("CG","207831650102_R02C01")])
-
-
-epicv2 <- as.data.frame(fread(file.path(pathref,"diffmeth", 
+epicv2 <- as.data.frame(fread(file.path(pathpro,"large_data",
   "array.900k_hg38_chrXYM.SNP.filtered.bed")), header = F, sep="\t",stringsAsFactors=FALSE)
 colnames(epicv2) <- c("chr","start","end","CG")
 
@@ -140,7 +129,7 @@ array_k562.250ng_1 <- array_k562.250ng_1[,c(6,2)]
 colnames(array_k562.250ng_1) <- c("chr_cpg_loc","beta")
 
 
-array_TF211 <- as.data.frame(test_betas[,c("CG","207831650102_R03C01")])
+array_TF211 <- as.data.frame(array_samp_beta[,c("CG","207831650102_R03C01")])
 
 array_TF211_1 <- merge(array_TF211, epicv2, by="CG")
 array_TF211_1 <- array_TF211_1 %>%
@@ -149,10 +138,16 @@ array_TF211_1 <- array_TF211_1[,c(6,2)]
 colnames(array_TF211_1) <- c("chr_cpg_loc","beta")
 
 #load TF samples
-load(file.path(pathclass,"Data/23-0814_UChicagoArray/processed/TF_betas.RData"))
-colnames(betas_CGcolumn)
+#load(file.path(pathclass,"Data/23-0814_UChicagoArray/processed/TF_betas.RData"))
+# colnames(betas_CGcolumn)
+# temp2 <- as.data.frame(betas_CGcolumn[,c("CG","207680760164_R05C01",
+#                                          "207680760164_R07C01")])
+# 
+# array_samp_beta <- merge(temp1,temp2,by="CG",all.x=T,all.y=T)
+# save(array_samp_beta,file=
+#        file.path(pathpro,"large_data","array_samp.K562.3FFPE_beta.RData"))
 
-array_TF640 <- as.data.frame(betas_CGcolumn[,c("CG","207680760164_R05C01")])
+array_TF640 <- as.data.frame(array_samp_beta[,c("CG","207680760164_R05C01")])
 
 array_TF640_1 <- merge(array_TF640, epicv2, by="CG")
 array_TF640_1 <- array_TF640_1 %>%
@@ -160,7 +155,7 @@ array_TF640_1 <- array_TF640_1 %>%
 array_TF640_1 <- array_TF640_1[,c(6,2)]
 colnames(array_TF640_1) <- c("chr_cpg_loc","beta")
 
-array_TF642 <- as.data.frame(betas_CGcolumn[,c("CG","207680760164_R07C01")])
+array_TF642 <- as.data.frame(array_samp_beta[,c("CG","207680760164_R07C01")])
 
 array_TF642_1 <- merge(array_TF642, epicv2, by="CG")
 array_TF642_1 <- array_TF642_1 %>%
@@ -173,10 +168,9 @@ colnames(array_TF642_1) <- c("chr_cpg_loc","beta")
 # Load 3 TF XR data
 
 ```{r}
-pathtemp <- "D:/Jingru/deconv/Data/XR_OtherSample/OtherSample_covFiles"
 
 f="TF211s2XR2122_comb"
-TF211_1 <- fread(file.path(pathtemp,
+TF211_1 <- fread(file.path(pathpro,"methylation_call_FFPE",
                      paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
 colnames(TF211_1) <- c("chr","start","end","meth.cnt","depth")
@@ -186,7 +180,7 @@ TF211_2 <- as.data.frame(TF211_1) %>% filter(depth>=15) %>%
              beta=round(meth.cnt/depth, digits=5))
 
 f="TF640XR2122_comb"
-TF640_1 <- fread(file.path(pathtemp,
+TF640_1 <- fread(file.path(pathpro,"methylation_call_FFPE",
                      paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
 colnames(TF640_1) <- c("chr","start","end","meth.cnt","depth")
@@ -196,7 +190,7 @@ TF640_2 <- as.data.frame(TF640_1) %>% filter(depth>=15) %>%
              beta=round(meth.cnt/depth, digits=5))
 
 f="TF642XR2122_comb"
-TF642_1 <- fread(file.path(pathtemp,
+TF642_1 <- fread(file.path(pathpro,"methylation_call_FFPE",
                      paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
 colnames(TF642_1) <- c("chr","start","end","meth.cnt","depth")
@@ -210,11 +204,9 @@ TF642_2 <- as.data.frame(TF642_1) %>% filter(depth>=15) %>%
 
 ```{r}
 
-pathtemp <- "D:/Jingru/references/RefData/K562_XR2021"
-
-f="K56210ngXR21A_comb"
-rep1_1 <- fread(file.path(pathtemp,
-                     paste0(f,"-hg38_PE/",f,"-merged.cov.SNPfiltered_clean.txt")),
+f="K56210ngrep1_comb" #"K56210ngXR21A_comb"
+rep1_1 <- fread(file.path(pathpro,"methylation_call_benchmarks",
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
 colnames(rep1_1) <- c("chr","start","end","meth.cnt","depth")
 
@@ -226,9 +218,9 @@ rep1_10cov <- as.data.frame(rep1_1) %>% filter(depth>=10) %>%
       mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
              beta=round(meth.cnt/depth, digits=5))
 
-f="K56210U10w1w2XR22A_comb"
-rep2_1 <- fread(file.path(pathtemp,
-                     paste0(f,"-hg38_PE/",f,"-merged.cov.SNPfiltered_clean.txt")),
+f="K56210ngrep2_comb" #"K56210U10w1w2XR22A_comb"
+rep2_1 <- fread(file.path(pathpro,"methylation_call_benchmarks",
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
 colnames(rep2_1) <- c("chr","start","end","meth.cnt","depth")
 
@@ -241,8 +233,8 @@ rep2_10cov <- as.data.frame(rep2_1) %>% filter(depth>=10) %>%
              beta=round(meth.cnt/depth, digits=5))
 
 f="K56210ngrep12_comb"
-rep12_1 <- fread(file.path(pathtemp,
-                     paste0(f,"-hg38_PE/",f,"-merged.cov.SNPfiltered_clean.txt")),
+rep12_1 <- fread(file.path(pathpro,"methylation_call_benchmarks",
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
 colnames(rep12_1) <- c("chr","start","end","meth.cnt","depth")
 
@@ -270,7 +262,7 @@ rep12.10cov_comb.15cov_clean <- rep12_comb1[,c(1,14,15)] %>%
 
 #Rscript "GetIntersectCG_fixList.R"
 #load intersected K56210ngXR21A
-load(file.path(pathtemp,"K56210ngXR21A_comb-hg38_PE/interFiles",
+load(file.path(pathpro,"large_data",
 "K56210ngXR21A_comb-interblocks_allvars.RData"))
 
 int_allcpg_15cov <- beta_maxcov_filter[!is.na(beta_maxcov_filter$beta),c(1,2,3,13,10,8,9)] %>%
@@ -280,13 +272,13 @@ int_allcpg_15cov <- int_allcpg_15cov[,1:5]
 
 ```
 
-# Make heatmaps, array vs. XR
+# Make heatmaps, array vs. enriched seq
 
-```{r array vs. XR}
-source(file.path("D:/Jingru/deconv/Program/R_fixed","correlation_plot2_clean.R"))
+```{r array vs. enriched seq}
+source(file.path(pathpro,"R_fixed","correlation_plot2_clean.R"))
 
-# correlation between XR and microarray for the FFPE TF's, 
-# Array vs. wgbs, array vs. XR
+# correlation between enriched seq and microarray for the FFPE TF's, 
+# Array vs. wgbs, array vs. enriched seq
 
 TF640_co <- CorrelatePlot2(samp1=TF640_2, samp2=array_TF640_1, 
   assay_xr="FLEXseq, TF640", assay="EPICv2, TF640", covnum=15)
@@ -356,7 +348,7 @@ K562_array_2
 
 ```
 
-# Density plot of Array vs. XR
+# Density plot of Array vs. enriched seq
 
 ```{r density}
 DrawDensityCompare <- function(array_df, xr_df, f){
@@ -413,10 +405,9 @@ pm_density
 # load K562 input
 
 ```{r}
-pathtemp <- "D:/Jingru/deconv/Data/correlation_df"
 
 f="K5621ngU1020XR22A_comb"
-k562.1ng_1 <- fread(file.path(pathtemp,
+k562.1ng_1 <- fread(file.path(pathpro,"methylation_call_benchmarks",
                      paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
 colnames(k562.1ng_1) <- c("chr","start","end","meth.cnt","depth")
@@ -425,8 +416,8 @@ k562.1ng_2 <- as.data.frame(k562.1ng_1) %>% filter(depth>=15) %>%
       mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
              beta=round(meth.cnt/depth, digits=5))
 
-f="K56210ngXR21A_comb"
-rep10ng_1 <- fread(file.path(pathtemp,
+f="K562rep1_comb"
+rep10ng_1 <- fread(file.path(pathpro,"methylation_call_benchmarks",
                      paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
 colnames(rep10ng_1) <- c("chr","start","end","meth.cnt","depth")
@@ -436,7 +427,7 @@ rep10ng_2 <- as.data.frame(rep10ng_1) %>% filter(depth>=15) %>%
              beta=round(meth.cnt/depth, digits=5))
 
 f="K562100ngXR23A_comb"
-k562.100ng_1 <- fread(file.path(pathtemp,
+k562.100ng_1 <- fread(file.path(pathpro,"methylation_call_benchmarks",
                      paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
 colnames(k562.100ng_1) <- c("chr","start","end","meth.cnt","depth")
@@ -469,7 +460,7 @@ pm2
 
 
 ```{r}
-source(file.path("D:/Jingru/deconv/Program/R_fixed","correlation_plot2_clean.R"))
+source(file.path(pathpro,"R_fixed","correlation_plot2_clean.R"))
 
 ##########################################
 #rep1 vs. rep2.
@@ -578,16 +569,17 @@ rrbs_cor2 <- rrbs_cor + ggtitle("Pearson's r = 0.99")+
 # 0.9178573 0.9876355 
 
 
-pm_wgbs.xr.othr2 <- ggarrange(wgbs_rrbsv2_2,xr_rrbsv2_2,wgbs_xrbs_2,xr_xrbs_2,
+pm_wgbs.enriched.othr2 <- ggarrange(wgbs_rrbsv2_2,xr_rrbsv2_2,wgbs_xrbs_2,xr_xrbs_2,
                  common.legend = TRUE, legend= "bottom",
-                 nrow = 1)
-pm_wgbs.xr.othr2
+                 nrow = 2, ncol = 2)
+pm_wgbs.enriched.othr2
 
 # dev.new()
 # pdf(file=file.path(pathref,"Output/correlation",
-#                    paste0(str_sub(Sys.Date(), start = 3), "-WGBS.XR_vsRR101nt.XRBS_15cov.pdf")),
+#                    paste0(str_sub(Sys.Date(), start = 3), 
+# "-WGBS.enriched_vsRR101nt.XRBS_15cov.pdf")),
 #     width = 9.5, height = 3.2, useDingbats = FALSE)
-# pm_wgbs.xr.othr2
+# pm_wgbs.enriched.othr2
 # dev.off()
 
 
@@ -612,27 +604,27 @@ return(df2)
 
 #15cov
 BF3713dil250ng_15cov <- 
-  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
              f="BF3713dil250ngXR23B_comb",ncov=15)
 
 BF3713dil100ng_15cov <- 
-  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
              f="BF3713dil100ngXR23B_comb",ncov=15)
 
 BF3713dil10ng_15cov <- 
-  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
              f="BF3713dil10ngXR23B_comb",ncov=15)
 
 BF3713dil1ng_15cov <- 
-  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
              f="BF3713dil1ngXR23B_comb",ncov=15)
 
 BF3713dil100pg_15cov <- 
-  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
              f="BF3713dil100pgXR23B_comb",ncov=15)
 
 BF3713dil250pg_15cov <- 
-  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
              f="BF3713dil250pgXR23B_comb",ncov=15)
 
 ##########################
