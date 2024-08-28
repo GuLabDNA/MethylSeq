@@ -182,7 +182,7 @@ p2
 ```{r GetFreqPlot}
 #load data
 k562_m <- 
-  read.xlsx(file.path(pathpro,"benchmarks","K562_enrichment_WGBSvs.XR.xlsx"),
+  read.xlsx(file.path(pathpro,"benchmarks","K562_enrichment_WGBSvs.enriched.xlsx"),
                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 
 p_line1 <- ggplot(data=k562_m, aes(x = bp.cnt_seq, y = perc, color=method.f)) +

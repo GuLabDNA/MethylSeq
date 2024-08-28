@@ -527,7 +527,7 @@ p2</code></pre>
 <h1>3. Enrichment fold, Fig.2g</h1>
 <pre class="r"><code>#load data
 k562_m &lt;- 
-  read.xlsx(file.path(pathpro,&quot;benchmarks&quot;,&quot;K562_enrichment_WGBSvs.XR.xlsx&quot;),
+  read.xlsx(file.path(pathpro,&quot;benchmarks&quot;,&quot;K562_enrichment_WGBSvs.enriched.xlsx&quot;),
                       sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 
 p_line1 &lt;- ggplot(data=k562_m, aes(x = bp.cnt_seq, y = perc, color=method.f)) +
