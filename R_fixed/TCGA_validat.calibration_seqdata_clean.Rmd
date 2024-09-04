@@ -14,7 +14,7 @@ You take the model settings (like hyperparameters) that performed the best on av
 3.Validate the final model on your external test set: 
 You take the final model from step 2, use it to predict the target variable on your external test set, and then compare the predictions with the actual values in your test set to calculate performance metrics.
 
-If use 161 XR samples only, the error is around 0.5.
+If use 161 samples only, the error is around 0.5.
 
 # load packages
 ```{r}
@@ -105,7 +105,7 @@ load(file=file.path(pathmeth,"TCGA",
                     "24-03-08-TCGA.sub.array_hg38_betas_60k_t250_TCGA.MESO.SarCtrl.Rdata"))
 #TCGA_hg38_betas.array, anno_TCGA.array
 
-#intersect with XR covered CpGs
+#intersect with sequenced covered CpGs
 load(file=file.path(pathref,"diffmeth",
   "array.450k.hg38_XRfixed.interBlocks_v2.RData")) #259845
 
@@ -133,8 +133,8 @@ anno_TCGA_sub.test$TCGA_Project_mcf <- anno_TCGA_sub.test$TCGA_Project
 #3. combine samples
 
 #remove controls
-co_csf <- read.xlsx("D:/Jingru/deconv/Data/XR_BFs/sample_info_v2.xlsx",
-                      sheet=4, skipEmptyRows=FALSE, colNames = TRUE)
+co_csf <- read.xlsx(file.path(pathpro,"clinical_info/sample_info_clean.xlsx"),
+                      sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 
 rm1 <- c("SCF098vXR22B-10cov.TCGA60k_original",
         "SCF705vXR22B-10cov.TCGA60k_original",
@@ -143,8 +143,8 @@ rm1 <- c("SCF098vXR22B-10cov.TCGA60k_original",
         "SCF919XR21B-10cov.TCGA60k_original",
         "SCF923XR21B-10cov.TCGA60k_original",co_csf$Sentrix_ID)
 
-anno_add_cns <- read.xlsx("D:/Jingru/deconv/Data/XR_BFs/sample_info_v2.xlsx",
-                       sheet=6, skipEmptyRows=FALSE, colNames = TRUE)
+anno_add_cns <- read.xlsx(file.path(pathpro,"clinical_info/sample_info_clean.xlsx"),
+                       sheet=3, skipEmptyRows=FALSE, colNames = TRUE)
 anno_add_cns$TCGA_Project_mcf <- anno_add_cns$TCGA_Project
 anno_add_cns$Sentrix_ID_TCGA <- paste0(
   sapply(str_split(anno_add_cns$Sentrix_ID, "-",  n = 2), `[`, 1),"-10cov.TCGA60k_original")
@@ -158,8 +158,8 @@ samp_betas_trans2 <-
   allsamp_betas_TCGA_trans[!(rownames(allsamp_betas_TCGA_trans) %in% c(rm1,rm2)), ]
 dim(samp_betas_trans2) #183 24346
 
-anno_add <- read.xlsx("D:/Jingru/deconv/Data/XR_BFs/sample_info_v2.xlsx",
-                       sheet=5, skipEmptyRows=FALSE, colNames = TRUE)
+anno_add <- read.xlsx(file.path(pathpro,"clinical_info/sample_info_clean.xlsx"),
+                       sheet=2, skipEmptyRows=FALSE, colNames = TRUE)
 anno_add$TCGA_Project_mcf <- anno_add$TCGA_Project
 anno_add$TCGA_Project_subgrp <- anno_add$TCGA_Project
 anno_add_fil <- subset(anno_add, !Sentrix_ID %in% c(rm1,rm2))
@@ -209,13 +209,13 @@ anno_test_final <- rbind(anno_test2,anno_add_fil[,-6])
   message("n: ",nrow(x.train))
   message("p: ",ncol(x.train))  
 
-load(file.path(pathmeth,"TCGA/training/CV_xr","nfolds.RData"))
+load(file.path(pathpro,"TCGA_CV_seq","nfolds.RData"))
 
 scores <- list()
 idx <- list()
 for(i in 1:length(nfolds)){
   fname <- paste0("CVfold.",i,".",0,".RData")
-  load(file.path(pathmeth,"TCGA/training/CV_xr",fname))
+  load(file.path(pathpro,"TCGA_CV_seq",fname))
   scores[[i]] <- rf.scores
   idx[[i]] <- nfolds[[i]][[1]][[1]]$test
 }
@@ -237,11 +237,11 @@ y.cv <- anno_TCGA.array$TCGA_Project_mcf[idx]
 
 # save selection forest
   save(rf.varsel,
-       file=file.path(pathmeth, "TCGA/training/results",
-                      paste0(i,"-rf.varsel.k5_2508train_onlyTCGA.XR.RData")))
+       file=file.path(pathpro, "TCGA-CNStumor_training_results",
+                      paste0(i,"-rf.varsel.k5_2508train_onlyTCGA.RData")))
 
-# load(file=file.path(pathmeth, "TCGA/training/results",
-#                     "rf.varsel.k5_2508train_onlyTCGA.XR.RData"))
+# load(file=file.path(pathpro, "TCGA-CNStumor_training_results",
+#                     "rf.varsel.k5_2508train_onlyTCGA.RData"))
  
    # get permutation variable importance
   imp.meandecrease <- rf.varsel$importance[,dim(rf.varsel$importance)[2]-1]
@@ -261,8 +261,8 @@ y.cv <- anno_TCGA.array$TCGA_Project_mcf[idx]
                         do.trace=FALSE,
                         seed=seed)
  save(rf.pred,
-       file=file.path(pathmeth, "TCGA/training/results",
-                      paste0(i,"-rf.pred.k5_2508train_onlyTCGA.XR.RData")))
+       file=file.path(pathpro, "TCGA-CNStumor_training_results",
+                      paste0(i,"-rf.pred.k5_2508train_onlyTCGA.RData")))
 # The output of the function, will be an object of class randomForest 
 # that contains all the information about the fitted random forest model, and
 # can be used for making predictions with new data.  
@@ -332,16 +332,16 @@ message("overall misclassification error calibrated: ",errp)
 
 #9. Save results
 save(rf.scores,probs,y,ys,yp,score_compare2,
-     file=file.path(pathmeth,"TCGA/training/results",
-                    paste0(i,"-validation.cv.score.k5_1019test_169TCGA.XR.RData")))
+     file=file.path(pathpro, "TCGA-CNStumor_training_results",
+                    paste0(i,"-validation.cv.score.k5_1019test_169TCGA.RData")))
 
-write_xlsx(score_compare2, file.path(pathdvdf,"XR_BFs",
-           paste0(i,"-score.comp.k5_TCGA_1019test_169TCGA.XR.xlsx")),
+write_xlsx(score_compare2, file.path(pathpro, "TCGA-CNStumor_training_results",
+           paste0(i,"-score.comp.k5_TCGA_1019test_169TCGA.xlsx")),
            col_names = TRUE,format_headers = TRUE)
 
 
-write_xlsx(ca_cal, file.path(pathdvdf,"XR_BFs",
-           paste0(i,"-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx")),
+write_xlsx(ca_cal, file.path(pathpro, "TCGA-CNStumor_training_results",
+           paste0(i,"-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx")),
            col_names = TRUE,format_headers = TRUE)
 #score_compare has the calibrated and original score
 #yp is the calibrated predicted groups, ys is the original predicted groups
@@ -362,34 +362,34 @@ test10 <- RFres_TCGA(i="T10",seed=42043574)
 
 
 test1 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T1-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T1-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test2 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T2-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T2-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test3 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T3-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T3-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test4 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T4-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T4-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test5 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T5-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T5-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test6 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T6-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T6-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test7 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T7-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T7-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test8 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T8-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T8-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test9 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T9-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T9-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test10 <- read.xlsx(file.path(pathdvdf,"XR_BFs",
-          "T10-score.comp.k5_TCGA_169samples_onlyTCGA.XR.xlsx"),
+          "T10-score.comp.k5_TCGA_169samples_onlyTCGA.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 
 
@@ -422,7 +422,7 @@ blk <- rbind(blk,test_out)
 median(blk$wrong_prec)
 median(blk$correct_prec)
 
-write_xlsx(blk, file.path(pathdvdf,"XR_BFs",
+write_xlsx(blk, file.path(pathpro, "TCGA-CNStumor_training_results",
           paste0("SeedInvestigation-score.comp.k5_TCGA_169samples.xlsx")),
            col_names = TRUE,format_headers = TRUE)
 ```

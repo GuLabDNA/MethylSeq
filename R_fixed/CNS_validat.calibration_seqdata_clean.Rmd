@@ -1,5 +1,5 @@
 ---
-title: "CNS_validat.calibration_XRdata"
+title: "CNS_validat.calibration_seqdata"
 author: "Jingru Yu"
 date: '2023-07-31'
 output: html_document
@@ -132,7 +132,7 @@ colnames(anno_train2) <- c("TCGA_ID","Sentrix_ID","TCGA_Project",
                       "material","TCGA_Project_subgrp","purity.abs")
 anno_train2$TCGA_Project_mcf <- anno_train2$TCGA_Project
 
-#intersect with XR covered CpGs
+#intersect with sequenced covered CpGs
 load(file=file.path(pathref,"diffmeth",
   "array.450k.hg38_XRfixed.interBlocks_v2.RData")) #259845
 
@@ -232,13 +232,13 @@ df <- rbind(betas_trans,CNStumor_betas.test,allsamp_betas_filter) %>%
   message("n: ",nrow(x.train))
   message("p: ",ncol(x.train))  
   
-load(file.path(pathmeth,"mnp_training-master/CV_xr_mcf","nfolds.RData"))
+load(file.path(pathmeth,"mnp_training-master/CV_seq_mcf","nfolds.RData"))
 
 scores <- list()
 idx <- list()
 for(i in 1:length(nfolds)){
   fname <- paste0("CVfold.",i,".",0,".RData")
-  load(file.path(pathmeth,"mnp_training-master/CV_xr_mcf",fname))
+  load(file.path(pathmeth,"mnp_training-master/CV_xeq_mcf",fname))
   scores[[i]] <- rf.scores
   idx[[i]] <- nfolds[[i]][[1]][[1]]$test
 }
@@ -260,11 +260,6 @@ RFres <- function(i,seed){
                                 length(table(as.factor(y.train)))),
                    importance=TRUE)
 
-# save selection forest
-  # save(rf.varsel,
-  #      file=file.path(pathmeth, "CNStumors/GSE109379_RAW_validation",
-  #                     "rf.varsel.k5_onlyCNS.XR_mcf_t1.RData"))
- 
    # get permutation variable importance
   imp.meandecrease <- rf.varsel$importance[,dim(rf.varsel$importance)[2]-1]
   
@@ -288,9 +283,6 @@ RFres <- function(i,seed){
                         keep.inbag=TRUE,
                         do.trace=FALSE,
                         seed=seed)
- # save(rf.pred,
- #       file=file.path(pathmeth, "CNStumors/GSE109379_RAW_validation",
- #                      "rf.pred.k5_onlyCNS.XR_mcf_t1.RData"))
 
   
 #6. Calibration, use the RF-cv scores of training set
@@ -341,7 +333,7 @@ yp.score <- as.data.frame(apply(probs, 1, function(x) max(x, na.rm = TRUE)))
 score_compare1<- cbind(rownames(probs),ys,ys.score)
 colnames(score_compare1) <- c("Sentrix_ID","pred_orig_label","pred_orig_score")
 score_compare1$grp=c(rep("Array", times=nrow(anno_test2)),
-                    c(rep("XR-methylSeq", times=nrow(anno_add_cns))))
+                    c(rep("FLEXseq", times=nrow(anno_add_cns))))
 
 m2 <- merge(anno_test_final,tops_df,by="Sentrix_ID",all.y=T)
 ca_cal <- subset(m2,substr(m2$TCGA_ID.x,1,3)!="GSM")
@@ -355,14 +347,14 @@ message("overall misclassification error calibrated: ",errp)
 #9. Save results
 save(rf.scores,probs,y,ys,yp,score_compare2,
      file=file.path(pathmeth,"CNStumors/GSE109379_RAW_validation",
-                    paste0(i,"-validation.cv.score.k5_1104test_29CNS.XR.RData")))
+                    paste0(i,"-validation.cv.score.k5_1104test_29CNS.RData")))
 
 
  write_xlsx(score_compare2, file.path(pathdvdf,"XR_BFs",
           paste0(i,"-score.comp.k5_CNStumor_1104test_29CNS.xlsx")),
            col_names = TRUE,format_headers = TRUE)
  
-samp <- score_compare2[score_compare2$grp=="XR-methylSeq",]
+samp <- score_compare2[score_compare2$grp=="FLEXseq",]
 samp$ref="CNStumor"
 samp <- samp[,-15]
 samp$test=i

@@ -1,6 +1,6 @@
 #-----------------------------------------------------------------------------------
-# script to GetIntersectCG_fixList based on GetIntersectCG, intersect XR with blocks 
-# to get new beta values 
+# script to GetIntersectCG_fixList based on GetIntersectCG, intersect sequencing data
+# with blocks to get new beta values 
 # Use data: sample.txt, allBlocks_CpG (ref_blocks2k_3cpgs.CpG_loc_230603.bed), 
 #   array list(tcga_60k, cns_32k)
 # Produce data: sample_original_prep.RData, sample_original_beta.RData

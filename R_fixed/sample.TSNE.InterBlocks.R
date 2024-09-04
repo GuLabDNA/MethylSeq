@@ -10,14 +10,6 @@
 # 2023-12-17 UTC
 # Update: 2024-02-29
 #------------------------------------------------------------------------------------ 
-# Output="interFiles_byMarker"
-# filetype=""
-# TFs="perc_uxm.over15.BRCA15XR2122-10cov.TCGA60k_subtract"
-# pathtemp="D:/Jingru/deconv/Data/sampBenign/titration_XR2122_comb/tsne"
-# samp_tp="TCGA60k"
-# ref_hg38_betas=TCGA_hg38_betas_filter;  
-# anno_ref=anno_TCGA.sub1[,-which(names(anno_TCGA.sub1) %in% "order")]
-# i=1
 
 library(Rtsne)
 library(RSpectra)

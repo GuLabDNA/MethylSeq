@@ -22,6 +22,7 @@ pathct.d <- "D:/Jingru/deconv/v2hg38Markers"
 pathdvdf <- "D:/Jingru/deconv/Data"
 pathmeth <- "D:/Jingru/methylation"
 pathref <- "D:/Jingru/references"
+pathpro <-"D:/Jingru/deconv/Data/Upload_processed" 
 
 library(dplyr)
 library(tidyverse)
@@ -67,16 +68,16 @@ load(file=file.path(pathmeth,"TCGA",
 anno_TCGA.array$TCGA_Project_mcf <- anno_TCGA.array$TCGA_Project
 anno_TCGA_sub.test$TCGA_Project_mcf <- anno_TCGA_sub.test$TCGA_Project
 
-load(file.path(pathmeth,"TCGA/training/CV_xr","nfolds.RData"))
+load(file.path(pathpro,"TCGA_CV_seq","nfolds.RData"))
 
-load(file=file.path(pathmeth,"TCGA/training/results",
-               paste0("T3","-validation.cv.score.k5_1019test_169TCGA.XR.RData")))
+load(file=file.path(pathpro,"TCGA-CNStumor_training_results",
+               paste0("T3","-validation.cv.score.k5_1019test_169TCGA.RData")))
 
 scores <- list()
 idx <- list()
 for(i in 1:length(nfolds)){
   fname <- paste0("CVfold.",i,".",0,".RData")
-  load(file.path(pathmeth,"TCGA/training/CV_xr",fname))
+  load(file.path(pathpro,"TCGA_CV_seq",fname))
   scores[[i]] <- rf.scores
   idx[[i]] <- nfolds[[i]][[1]][[1]]$test
 }
@@ -85,7 +86,7 @@ scores <- do.call(rbind,scores)
 probl <- list()
 for(i in 1:length(nfolds)){
   fname <- paste0("probsCVfold.",i,".",0,".RData")
-  load(file.path(pathmeth,"TCGA/training/CV_xr",fname))
+  load(file.path(pathpro,"TCGA_CV_seq",fname))
   probl[[i]] <- probs
 }
 probs <- do.call(rbind,probl)
@@ -111,7 +112,7 @@ message("overall misclassification error calibrated: ",errp)
 message("fitting final calibration model ...",Sys.time())
 
 # save(scores,probs,y,ys,yp,score_compare,
-#      file=file.path(pathmeth,"TCGA/training/results",
+#      file=file.path(pathpro,"TCGA-CNStumor_training_results",
 #                     paste0("T3","-CVresults_subXR24346_2508samp.RData")))
 
 message("generating report ...",Sys.time())
@@ -134,7 +135,7 @@ colnames(out) <- c("AUC","misclassification","brier score","logloss")
 rownames(out) <- c("raw scores","calibrated scores")
 out
 
-# write.xlsx(as.data.frame(out), file=file.path(pathmeth, "TCGA/training/results",
+# write.xlsx(as.data.frame(out), file=file.path(pathpro,"TCGA-CNStumor_training_results",
 #    paste0("T3","-CVresults_subXR24346_2508samp_report.xlsx")), rowNames=T)
 
 ```
