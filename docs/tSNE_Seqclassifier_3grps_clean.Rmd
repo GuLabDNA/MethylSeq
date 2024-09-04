@@ -10,10 +10,7 @@ output: html_document
 ```{r, message=FALSE, warning=FALSE}
 #rm(list=ls())
 options(scipen=999999999)
-pathmeth <-"D:/Jingru/methylation"
-pathref <- "D:/Jingru/references"
-pathclass <- "D:/Jingru/classification"
-pathdvdf <- "D:/Jingru/deconv/Data"
+
 
 library(dplyr) 
 library(openxlsx)
@@ -66,6 +63,9 @@ pathref <- "D:/Jingru/references"
 
 pathsampBF="D:/Jingru/deconv/Data/XR_BFs/BF_covFiles"
 pathsampout="D:/Jingru/deconv/Output"
+
+pathref <- "D:/Jingru/references"
+pathpro <-"D:/Jingru/deconv/Data/Upload_processed" 
 ```
 
 # t-SNE plots by pathological groups and sample types
@@ -117,7 +117,7 @@ load(file=file.path(pathdvdf,"Upload_processed/XRclassifier",
       
       #save plot data
       # write.csv(tsne_plot.df, file=file.path("D:/Jingru/deconv/Output/Output_BFs",
-      #   paste0("P",perplex_vec[i],"-LUAD.DLBC.CTRL_XR_Tsne_iter2500.csv")),row.names = FALSE)
+      #   paste0("P",perplex_vec[i],"-LUAD.DLBC.CTRL_Tsne_iter2500.csv")),row.names = FALSE)
       
       #different color pattern        
       meth3 <- factor(tsne_plot.df$cluster, order=T,
@@ -171,7 +171,7 @@ load(file=file.path(pathdvdf,"Upload_processed/XRclassifier",
       
       #save plot data
       # write.csv(tsne_plot.df, file=file.path("D:/Jingru/deconv/Output/Output_BFs",
-      #   paste0("P4","-SampleTypes_XR_Tsne.csv")),row.names = FALSE)
+      #   paste0("P4","-SampleTypes_Tsne.csv")),row.names = FALSE)
       
       meth3 <- factor(tsne_plot.df$cluster, order=T,
                        levels=c("BF","FFPE"))
@@ -200,14 +200,14 @@ load(file=file.path(pathdvdf,"Upload_processed/XRclassifier",
       
 ```
 
-# Classifier score, XR vs. array
+# Classifier score, seq vs. array
 
-```{r score, XR vs. array}
+```{r score, seq_vs_array}
 ################################    
 #make plots with average data
 
-test_m <- read.xlsx(file.path(pathdvdf,"Upload_processed/XRclassifier",
-          "24-07-02-score.comp_XRclassifierVS.array_18samples.xlsx"),
+test_m <- read.xlsx(file.path(pathdvdf,"Upload_processed/Seq_classifier",
+          "24-07-02-score.comp_seqVS.array_18samples.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test_m2 <- test_m %>% 
 mutate(temp1=sapply(str_split(TCGA_ID, "X",  n = 2), `[`, 1),
@@ -217,8 +217,8 @@ mutate(temp1=sapply(str_split(TCGA_ID, "X",  n = 2), `[`, 1),
     can_grp=ifelse(TCGA_ID %in% c("BF1059XR2324", "BF3241XR21B",  "BF168XR23A",
              "BF3041XR23B",  "BF3077XR2324", "BF3122XR23B"), "Controls","Tumors"))
 
-mean(test_m2[test_m2$Classifier=="XR","mean_score"])
-sd(test_m2[test_m2$Classifier=="XR","mean_score"])
+mean(test_m2[test_m2$Classifier=="FLEXseq","mean_score"])
+sd(test_m2[test_m2$Classifier=="FLEXseq","mean_score"])
 
 # Compute the analysis of variance
 
@@ -226,7 +226,7 @@ pwc2 <- test_m2[test_m2$can_grp!="Controls",] %>%
   wilcox_test(mean_score ~ Classifier, paired = TRUE)
 pwc2 #0.0122
 
-my_comparisons <- list(c("TCGA/CNS", "XR"))
+my_comparisons <- list(c("TCGA/CNS array", "FLEXseq"))
 
 pp1 <- 
   ggplot(data=test_m2[test_m2$can_grp!="Controls",], aes(x = Classifier, y = mean_score)) + 

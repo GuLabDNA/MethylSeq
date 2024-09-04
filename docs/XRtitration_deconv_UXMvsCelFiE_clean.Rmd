@@ -238,7 +238,7 @@ p.line9
 ```
 
 
-# In silico XR data of CelFie and UXM
+# In silico enriched data of CelFie and UXM
 
 ```{r plots}
 

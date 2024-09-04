@@ -465,8 +465,32 @@ chisq.test(mtab) # Prints test summary</code></pre>
 <h1>pheatmap for CSF</h1>
 <pre class="r"><code>samp_res_csf &lt;- samp_res_final3[samp_res_final3$Sample_type==&quot;CSF&quot;,]
 samp_res_csf &lt;- samp_res_csf[order(samp_res_csf$purity.abs),]
+samp_res_csf$TF_50cat &lt;- ifelse(samp_res_csf$TF_cat %in% c(&quot;0-30&quot;,&quot;30-50&quot;),
+                                &quot;0-50&quot;,&quot;50+&quot;)
 
-rm(.Random.seed, envir=globalenv())
+samp_res_csfca &lt;- samp_res_csf[samp_res_csf$ca_co==&quot;Case&quot;,]
+samp_res_csfca$class &lt;- ifelse(samp_res_csfca$Classification==&quot;Indeterminate&quot;,1,0)
+
+table(samp_res_csfca$TF_50cat,samp_res_csfca$class)</code></pre>
+<pre><code>##       
+##         0  1
+##   0-50  8 22
+##   50+  17  9</code></pre>
+<pre class="r"><code>  #       0  1
+  # 0-50  8 22
+  # 50+  17  9
+chisq.test(table(samp_res_csfca$TF_50cat,samp_res_csfca$class),correct=FALSE)</code></pre>
+<pre><code>## 
+##  Pearson&#39;s Chi-squared test
+## 
+## data:  table(samp_res_csfca$TF_50cat, samp_res_csfca$class)
+## X-squared = 8.449, df = 1, p-value = 0.003652</code></pre>
+<pre class="r"><code>#X-squared = 8.449, df = 1, p-value = 0.003652
+message(&quot;Predicted indeterminates in samples with TF&lt;50%,&quot;, 22/30)</code></pre>
+<pre><code>## Predicted indeterminates in samples with TF&lt;50%,0.733333333333333</code></pre>
+<pre class="r"><code>message(&quot;Predicted indeterminates in samples with TF&gt;=50%,&quot;, 9/26)</code></pre>
+<pre><code>## Predicted indeterminates in samples with TF&gt;=50%,0.346153846153846</code></pre>
+<pre class="r"><code>rm(.Random.seed, envir=globalenv())
 
 set.seed (23951)
 meth &lt;- matrix (rnorm (212), nrow = 2, ncol = 106)
@@ -544,10 +568,55 @@ aa1</code></pre>
 <pre class="r"><code>samp_res_othr &lt;- samp_res_final3[samp_res_final3$Sample_type!=&quot;CSF&quot;,]
 samp_res_othr &lt;- samp_res_othr[order(samp_res_othr$purity.abs),]
 or_target &lt;- c(&quot;non-CSF BF&quot;, &quot;FFPE&quot;)
-samp_res_othr2 &lt;- samp_res_othr %&gt;% 
-    arrange(factor(Sample_tp.3cat, levels = or_target))
 
-rm(.Random.seed, envir=globalenv())
+samp_res_othr2 &lt;- samp_res_othr %&gt;% 
+    arrange(factor(Sample_tp.3cat, levels = or_target))  %&gt;% 
+  mutate(TF_50grp_2cat = ifelse(TF_XR&lt;0.5, 1, 2),
+         TF_50grp_2cat.f = factor(as.factor(TF_50grp_2cat), order=T,
+                levels=c(1,2),labels=c(&quot;&lt;0.5&quot;,&quot;0.5+&quot;)),
+         class_un = ifelse(Classification==&quot;Indeterminate&quot;,1,0))
+
+samp_res_bf &lt;- samp_res_othr2[samp_res_othr2$Sample_tp.3cat==&quot;non-CSF BF&quot;,]
+table(samp_res_bf$TF_50grp_2cat,samp_res_bf$Classification)</code></pre>
+<pre><code>##    
+##     Indeterminate Matched Matched to GI-AD family Matched to GYN family
+##   1            22       3                       0                     0
+##   2             5       7                       2                     1
+##    
+##     Misleading profile
+##   1                  1
+##   2                  1</code></pre>
+<pre class="r"><code>table(samp_res_bf$class_un,samp_res_bf$TF_50grp_2cat)</code></pre>
+<pre><code>##    
+##      1  2
+##   0  4 11
+##   1 22  5</code></pre>
+<pre class="r"><code>chisq.test(table(samp_res_bf$class_un,samp_res_bf$TF_50grp_2cat),correct=FALSE)</code></pre>
+<pre><code>## 
+##  Pearson&#39;s Chi-squared test
+## 
+## data:  table(samp_res_bf$class_un, samp_res_bf$TF_50grp_2cat)
+## X-squared = 12.286, df = 1, p-value = 0.0004564</code></pre>
+<pre class="r"><code>#X-squared = 12.286, df = 1, p-value = 0.0004564
+message(&quot;Predicted indeterminates in samples with TF&lt;50%,&quot;, 22/26)</code></pre>
+<pre><code>## Predicted indeterminates in samples with TF&lt;50%,0.846153846153846</code></pre>
+<pre class="r"><code>message(&quot;Predicted indeterminates in samples with TF&gt;=50%,&quot;, 5/16)</code></pre>
+<pre><code>## Predicted indeterminates in samples with TF&gt;=50%,0.3125</code></pre>
+<pre class="r"><code>stat_bf &lt;- samp_res_bf %&gt;% 
+group_by(TF_50grp_2cat) %&gt;%
+  reframe(
+    count = n(),
+    mean = mean(top1_cal_score, na.rm = TRUE),
+    sd = sd(top1_cal_score, na.rm = TRUE),
+    median=median(top1_cal_score, na.rm = TRUE))
+pwc_bf &lt;- samp_res_bf %&gt;% 
+  wilcox_test(top1_cal_score ~ TF_50grp_2cat.f, p.adjust.method = &quot;bonferroni&quot;)
+pwc_bf</code></pre>
+<pre><code>## # A tibble: 1 × 7
+##   .y.            group1 group2    n1    n2 statistic      p
+## * &lt;chr&gt;          &lt;chr&gt;  &lt;chr&gt;  &lt;int&gt; &lt;int&gt;     &lt;dbl&gt;  &lt;dbl&gt;
+## 1 top1_cal_score &lt;0.5   0.5+      26    16       296 0.0222</code></pre>
+<pre class="r"><code>rm(.Random.seed, envir=globalenv())
 
 set.seed (1259)
 meth &lt;- matrix (rnorm (158), nrow = 2, ncol = 79)

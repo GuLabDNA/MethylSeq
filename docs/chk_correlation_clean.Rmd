@@ -165,7 +165,7 @@ colnames(array_TF642_1) <- c("chr_cpg_loc","beta")
 
 ```
 
-# Load 3 TF XR data
+# Load 3 TF sequenced data
 
 ```{r}
 
@@ -319,7 +319,7 @@ pm_TFcorr
 # dev.off() 
 ```
 
-# Make heatmaps, array input
+# K562 input titrations of array data
 
 ```{r}
 K562_array100 <- CorrelatePlot2(samp1=array_k562.100ng_1, samp2=k562_epic1_chr, 
@@ -402,7 +402,7 @@ pm_density
 
 ```
 
-# load K562 input
+# K562 input titrations of FLEXseq
 
 ```{r}
 
@@ -416,7 +416,7 @@ k562.1ng_2 <- as.data.frame(k562.1ng_1) %>% filter(depth>=15) %>%
       mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
              beta=round(meth.cnt/depth, digits=5))
 
-f="K562rep1_comb"
+f="K56210ngrep1_comb"
 rep10ng_1 <- fread(file.path(pathpro,"methylation_call_benchmarks",
                      paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
                      quote="",sep="\t")
@@ -477,18 +477,23 @@ K562rep_2
 #FLEXseq vs. EPIC
 
 K562_wgbs2 <- CorrelatePlot2(samp1=k562_wgbs_2, samp2=rep12.10cov_comb.15cov, 
-  assay_xr='WGBS', assay="FLEXseq, rep1&2", covnum=15)
+  assay_xr='WGBS', assay='FLEXseq, rep1&2', covnum=15)
 K562_wgbs2_2 <- K562_wgbs2 + ggtitle("Pearson's r = 0.97")+
   theme(plot.title = element_text(hjust = 0.5))
 K562_wgbs2_2
 #0.8793548 0.9674620(use)
 
-K562_xr_epic <- CorrelatePlot2(samp1=rep12.10cov_comb.15cov, samp2=k562_epic1_chr, 
-  assay_xr='FLEXseq, rep1&2', assay="EPIC", covnum=15)
+K562_xr_epic <- CorrelatePlot2(samp1=k562_epic1_chr, samp2=rep12.10cov_comb.15cov, 
+  assay_xr='EPIC', assay='FLEXseq, rep1&2', covnum=15)
 K562_xr_epic2 <- K562_xr_epic + ggtitle("Pearson's r = 0.96")+
   theme(plot.title = element_text(hjust = 0.5))
 #0.8426689 0.9622628(use)
 K562_xr_epic2
+
+pm1 <- ggarrange(K562rep_2,K562_wgbs2_2,K562_xr_epic2,
+                 common.legend = TRUE, legend= "bottom",
+                 nrow = 1)
+pm1
 
 ##########################################
 #intersection
@@ -561,14 +566,6 @@ xr_xrbs_2 <- xr_xrbs + ggtitle("Pearson's r = 0.91")+
   theme(plot.title = element_text(hjust = 0.5))
 # 0.7788166 0.9115793 
 
-#check 2 RRBS
-rrbs_cor <- CorrelatePlot2(samp1=k562_rrbs2_chr, samp2=k562_rrbs_3,
-                           assay_xr="RRBS_comb_processed", assay="RRBS_comb", covnum=15) 
-rrbs_cor2 <- rrbs_cor + ggtitle("Pearson's r = 0.99")+
-  theme(plot.title = element_text(hjust = 0.5))
-# 0.9178573 0.9876355 
-
-
 pm_wgbs.enriched.othr2 <- ggarrange(wgbs_rrbsv2_2,xr_rrbsv2_2,wgbs_xrbs_2,xr_xrbs_2,
                  common.legend = TRUE, legend= "bottom",
                  nrow = 2, ncol = 2)
@@ -585,7 +582,7 @@ pm_wgbs.enriched.othr2
 
 ```
 
-# Input titrations
+# Input titrations of BF cfDNA
 
 ```{r chk input titrations}
 
@@ -604,28 +601,28 @@ return(df2)
 
 #15cov
 BF3713dil250ng_15cov <- 
-  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
              f="BF3713dil250ngXR23B_comb",ncov=15)
 
 BF3713dil100ng_15cov <- 
-  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
              f="BF3713dil100ngXR23B_comb",ncov=15)
 
 BF3713dil10ng_15cov <- 
-  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
              f="BF3713dil10ngXR23B_comb",ncov=15)
 
 BF3713dil1ng_15cov <- 
-  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
              f="BF3713dil1ngXR23B_comb",ncov=15)
 
-BF3713dil100pg_15cov <- 
-  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
-             f="BF3713dil100pgXR23B_comb",ncov=15)
-
 BF3713dil250pg_15cov <- 
-  GetDataCor(pathtemp=paste0(pathpro,"/methylation_call_benchmarks"),
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
              f="BF3713dil250pgXR23B_comb",ncov=15)
+
+BF3713dil100pg_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="BF3713dil100pgXR23B_comb",ncov=15)
 
 ##########################
 
@@ -683,3 +680,80 @@ pm_bf3713
 
 ```
 
+# Input titrations of FFPE tissue DNA
+
+```{r FFPE}
+
+
+GetDataCor <- function(pathtemp,f,ncov){
+df1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(df1) <- c("chr","start","end","meth.cnt","depth")
+
+df2 <- as.data.frame(df1) %>% filter(depth>=ncov) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+print(nrow(df2))
+return(df2)
+}
+
+#10cov
+ffpe50_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE50XR23B_comb",ncov=15)
+#6079610, cov=10
+#4531803, cov=15
+
+ffpe10_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE10XR23B_comb",ncov=15)
+#6498662, cov=10
+#5042679, cov=15
+ffpe5_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE5XR23B_comb",ncov=15)
+#5732418, cov=10
+#4023812, cov=15
+ffpe1_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE1XR24A_comb",ncov=15)
+#834532, cov=10
+#220286, cov=15
+
+p10ngvs50ng_15cov <- CorrelatePlot2(samp1=ffpe10_15cov, samp2=ffpe50_15cov, 
+  assay_xr="Input 10ng", assay="Input 50ng", covnum=15)
+p10ngvs50ng_15cov2 <- p10ngvs50ng_15cov + ggtitle("Pearson's r = 0.96")+
+  theme(plot.title = element_text(hjust = 0.5))
+#      rho       cor 
+#0.8098801 0.9409763, cov=10
+#0.8331132 0.9565296, cov=15
+
+p10ngvs5ng_15cov <- CorrelatePlot2(samp1=ffpe10_15cov, samp2=ffpe5_15cov, 
+  assay_xr="Input 10ng", assay="Input 5ng", covnum=15)
+p10ngvs5ng_15cov2 <- p10ngvs5ng_15cov + ggtitle("Pearson's r = 0.96")+
+  theme(plot.title = element_text(hjust = 0.5))
+#0.8034191 0.9393047
+#0.8268879 0.9557422, cov=15
+
+p10ngvs1ng_15cov <- CorrelatePlot2(samp1=ffpe10_15cov, samp2=ffpe1_15cov, 
+  assay_xr="Input 10ng", assay="Input 1ng", covnum=15)
+p10ngvs1ng_15cov2 <- p10ngvs1ng_15cov + ggtitle("Pearson's r = 0.90")+
+  theme(plot.title = element_text(hjust = 0.5))
+#0.6844943 0.8979925 
+#0.7113987 0.9022243
+
+
+pm_ffpe_15cov <- ggarrange(p10ngvs50ng_15cov2,p10ngvs5ng_15cov2,p10ngvs1ng_15cov2,
+                 common.legend = TRUE, legend= "bottom",
+                 ncol = 3)
+pm_ffpe_15cov
+
+# dev.new()
+# pdf(file=file.path(pathref,"Output/correlation",
+#                    paste0(str_sub(Sys.Date(), start = 3), "-FFPE_titration_15cov.pdf")),
+#     width = 7, height = 3.1, useDingbats = FALSE)
+# pm_ffpe_15cov
+# dev.off()
+
+```

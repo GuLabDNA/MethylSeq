@@ -363,7 +363,7 @@ p2
 
 ```
 
-```{r supplFig.1b, xr100}
+```{r supplFig.1b, extend100}
 
 #load close_CCGG
 close_xrbs100 <- fread(file.path(pathref,"diffmeth/interFiles", "CCGG_close_xrbs100.bed"),

@@ -101,6 +101,20 @@ chisq.test(mtab) # Prints test summary
 ```{r pheatmap_CSF}
 samp_res_csf <- samp_res_final3[samp_res_final3$Sample_type=="CSF",]
 samp_res_csf <- samp_res_csf[order(samp_res_csf$purity.abs),]
+samp_res_csf$TF_50cat <- ifelse(samp_res_csf$TF_cat %in% c("0-30","30-50"),
+                                "0-50","50+")
+
+samp_res_csfca <- samp_res_csf[samp_res_csf$ca_co=="Case",]
+samp_res_csfca$class <- ifelse(samp_res_csfca$Classification=="Indeterminate",1,0)
+
+table(samp_res_csfca$TF_50cat,samp_res_csfca$class)
+  #       0  1
+  # 0-50  8 22
+  # 50+  17  9
+chisq.test(table(samp_res_csfca$TF_50cat,samp_res_csfca$class),correct=FALSE)
+#X-squared = 8.449, df = 1, p-value = 0.003652
+message("Predicted indeterminates in samples with TF<50%,", 22/30)
+message("Predicted indeterminates in samples with TF>=50%,", 9/26)
 
 rm(.Random.seed, envir=globalenv())
 
@@ -183,8 +197,32 @@ aa1
 samp_res_othr <- samp_res_final3[samp_res_final3$Sample_type!="CSF",]
 samp_res_othr <- samp_res_othr[order(samp_res_othr$purity.abs),]
 or_target <- c("non-CSF BF", "FFPE")
+
 samp_res_othr2 <- samp_res_othr %>% 
-    arrange(factor(Sample_tp.3cat, levels = or_target))
+    arrange(factor(Sample_tp.3cat, levels = or_target))  %>% 
+  mutate(TF_50grp_2cat = ifelse(TF_XR<0.5, 1, 2),
+         TF_50grp_2cat.f = factor(as.factor(TF_50grp_2cat), order=T,
+                levels=c(1,2),labels=c("<0.5","0.5+")),
+         class_un = ifelse(Classification=="Indeterminate",1,0))
+
+samp_res_bf <- samp_res_othr2[samp_res_othr2$Sample_tp.3cat=="non-CSF BF",]
+table(samp_res_bf$TF_50grp_2cat,samp_res_bf$Classification)
+table(samp_res_bf$class_un,samp_res_bf$TF_50grp_2cat)
+chisq.test(table(samp_res_bf$class_un,samp_res_bf$TF_50grp_2cat),correct=FALSE)
+#X-squared = 12.286, df = 1, p-value = 0.0004564
+message("Predicted indeterminates in samples with TF<50%,", 22/26)
+message("Predicted indeterminates in samples with TF>=50%,", 5/16)
+
+stat_bf <- samp_res_bf %>% 
+group_by(TF_50grp_2cat) %>%
+  reframe(
+    count = n(),
+    mean = mean(top1_cal_score, na.rm = TRUE),
+    sd = sd(top1_cal_score, na.rm = TRUE),
+    median=median(top1_cal_score, na.rm = TRUE))
+pwc_bf <- samp_res_bf %>% 
+  wilcox_test(top1_cal_score ~ TF_50grp_2cat.f, p.adjust.method = "bonferroni")
+pwc_bf
 
 rm(.Random.seed, envir=globalenv())
 

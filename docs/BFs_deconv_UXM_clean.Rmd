@@ -251,7 +251,6 @@ res_csf_neg.filter <- res_csf_neg.filter1
 ct <- res_csf_neg.filter$CellType
 ```
 
-# Fig. 5d
 ##Boxplots of z-scores, cancers vs. non-target cancers
 
 ```{r boxplot, LUAD&DLBC&BRCA}
@@ -276,19 +275,24 @@ ca_long2_csf <- ca_long2[ca_long2$BF_id %in% samp_res_csf.ca$BF_id,]
 ct=c("Breast-Luminal-Ep","Lung-Ep-Alveo","Blood-B","Colon-Ep","Gastric-Ep",
      "Ovary-Ep","Oligodend","Neuron")
 
+ct_all <- c("Breast-Luminal-Ep","Lung-Ep-Alveo","Blood-B","Colon-Ep",
+     "Gastric-Ep","Ovary-Ep","Oligodend","Neuron",
+     "Endothel","Bladder-Ep","Breast-Basal-Ep","Kidney-Ep", "Liver-Hep",
+     "Lung-Ep-Bron","Pancreas-Duct", "Small-Int-Ep", "Smooth-Musc",
+     "Blood-Granul", "Blood-Mono+Macro","Blood-T")
+
 ca_long2_csf_or <- ca_long2_csf %>%
   group_by(BF_id) %>%
   arrange(BF_id, -value) %>%
   mutate(or_perc = row_number())
 
-
 blk <- data.frame()
-for(i in 1:length(ct)){
+for(i in 1:length(ct_all)){
   ca_long_ex <- ca_long2_csf_or[,c("CellType","sample_id","BF_id","value","or_perc")] %>% 
-  filter(CellType==ct[i]) %>%
+  filter(CellType==ct_all[i]) %>%
   rowwise()%>%
-  mutate(control_mean=res_csf_neg.filter[res_csf_neg.filter$CellType==ct[i],"mean"],
-         control_std=res_csf_neg.filter[res_csf_neg.filter$CellType==ct[i],"std"],
+  mutate(control_mean=res_csf_neg.filter[res_csf_neg.filter$CellType==ct_all[i],"mean"],
+         control_std=res_csf_neg.filter[res_csf_neg.filter$CellType==ct_all[i],"std"],
          z.score=round((value - control_mean)/control_std,3))
   
   ca_long_ex <- ca_long_ex[,c("CellType","BF_id","value","z.score","or_perc")]
@@ -300,7 +304,12 @@ a <- blk$z.score
 ca_long_ex2 <- cbind(blk[,c("CellType","BF_id","value","or_perc")],a)
 colnames(ca_long_ex2) <- c("CellType","BF_id","value","or_perc","z.score")
 
-ca_long_ex2 <- ca_long_ex2 %>%
+ca_long_ex2_or <- ca_long_ex2 %>%
+    group_by(BF_id) %>%
+    arrange(-z.score, .by_group = TRUE)  %>%
+  mutate(or_zscore=c(1:20))
+
+ca_long_ex3 <- ca_long_ex2_or[ca_long_ex2_or$CellType %in% ct, ] %>%
   mutate(or_perc2=ifelse(or_perc>2,0,or_perc),
          or_perc2.f= factor(as.factor(or_perc2)),
     grp_luad =ifelse(BF_id %in% luad_id, yes="LUAD", no="Non-LUAD"),
@@ -337,9 +346,10 @@ ca_long_ex2 <- ca_long_ex2 %>%
                 levels=c("Brain", "Non-Brain"),
                 labels=c("Brain", "Non-Brain")))
 
+
 ###################################
 #luad
-lung1 <- ca_long_ex2 %>% filter(CellType=="Lung-Ep-Alveo")  
+lung1 <- ca_long_ex3 %>% filter(CellType=="Lung-Ep-Alveo")  
 
 p_luad <- ggplot(data=lung1, aes(x = grp_luad.f, y = z.score, 
                                  color = grp_luad.f, shape = grp_luad.f)) + 
@@ -368,11 +378,42 @@ p_luad <- ggplot(data=lung1, aes(x = grp_luad.f, y = z.score,
         legend.title=element_blank(),
         plot.title = element_text(face= "bold",size=15,hjust = 0.5),
         panel.spacing = unit(0.2, "lines")) 
-  p_luad
+p_luad
+  
+p_luad_or <- ggplot(data=lung1, aes(x = or_zscore, y = z.score, 
+                                 color = grp_luad.f, shape = grp_luad.f)) + 
+  geom_point(size=1.8) +
+  geom_hline(yintercept=-3,color = "grey80", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=3,color = "grey80", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=-2,color = "grey30", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=2,color = "grey30", linetype="dashed", linewidth=0.5)+
+  scale_color_manual(values=c("#b890e0","#00BFC4"))+
+  scale_y_continuous(breaks=seq(-10,40, by = 10),
+                     labels=seq(-10,40, by = 10),
+                     limits=c(-10,40), expand=c(0,0)) +
+  scale_x_continuous(breaks=c(1,2,3,seq(5,20, by = 5)),
+                     labels=c(1,2,3,seq(5,20, by = 5)),
+                     limits=c(0.5,21), expand=c(0,0)) +
+  labs(y="Z-score",x=NULL,title="Lung alveolar epi.")+
+   theme(panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        panel.grid.major.y = element_line(color = "grey80",
+                                          linewidth = 0.5,
+                                          linetype = 1),
+        panel.border = element_rect(color="black",fill=NA),
+        #text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15,face="bold"),
+        axis.text.y = element_text(size=15, face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        legend.position="none",
+        legend.title=element_blank(),
+        plot.title = element_text(face= "bold",size=15,hjust = 0.5),
+        panel.spacing = unit(0.2, "lines")) 
+p_luad_or
   
 ###################################
 #brca
-brca1 <- ca_long_ex2 %>% filter(CellType=="Breast-Luminal-Ep")
+brca1 <- ca_long_ex3 %>% filter(CellType=="Breast-Luminal-Ep")
 
 p_brca <- ggplot(data=brca1, aes(x = grp_brca.f, y = z.score, 
                                  color = grp_brca.f, shape=grp_brca.f)) + 
@@ -403,9 +444,42 @@ p_brca <- ggplot(data=brca1, aes(x = grp_brca.f, y = z.score,
         panel.spacing = unit(0.2, "lines")) 
 p_brca
 
+p_brca_or <- ggplot(data=brca1, aes(x = or_zscore, y = z.score, 
+                                 color = grp_brca.f, shape= grp_brca.f)) + 
+  geom_point(size=1.8) +
+  annotate("point", x = 3, y = 1.165, colour = "#6e1e33", shape=4, size=2) +
+  #geom_vline(xintercept=3,color = "grey80", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=-3,color = "grey80", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=3,color = "grey80", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=-2,color = "grey30", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=2,color = "grey30", linetype="dashed", linewidth=0.5)+
+  scale_color_manual(values=c("#6e1e33","#00BFC4","#b90f38"))+
+  scale_y_continuous(breaks=seq(-10,40, by = 10),
+                     labels=seq(-10,40, by = 10),
+                     limits=c(-10,40), expand=c(0,0)) +
+  scale_x_continuous(breaks=c(1,2,3,seq(5,20, by = 5)),
+                     labels=c(1,2,3,seq(5,20, by = 5)),
+                     limits=c(0.5,21), expand=c(0,0)) +
+  labs(y="Z-score",x=NULL,title="Breast luminal epi.")+
+   theme(panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        panel.grid.major.y = element_line(color = "grey80",
+                                          linewidth = 0.5,
+                                          linetype = 1),
+        panel.border = element_rect(color="black",fill=NA),
+        #text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15,face="bold"),
+        axis.text.y = element_text(size=15, face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        legend.position="none",
+        legend.title=element_blank(),
+        plot.title = element_text(face= "bold",size=15,hjust = 0.5),
+        panel.spacing = unit(0.2, "lines")) 
+p_brca_or
+
 ###################################
 #DLBC
-lympho1 <- ca_long_ex2 %>% filter(CellType=="Blood-B") 
+lympho1 <- ca_long_ex3 %>% filter(CellType=="Blood-B") 
 
 p_lympho <- ggplot(data=lympho1, aes(x = grp_lympho.f, y = z.score, 
                                      color = grp_lympho.f, shape=grp_lympho.f)) +
@@ -436,6 +510,39 @@ p_lympho <- ggplot(data=lympho1, aes(x = grp_lympho.f, y = z.score,
         panel.spacing = unit(0.2, "lines")) 
 p_lympho
 
+p_lympho_or <- ggplot(data=lympho1, aes(x = or_zscore, y = z.score, 
+                                 color = grp_lympho.f, shape= grp_lympho.f)) + 
+  geom_point(size=1.8) +
+  annotate("point", x = 2, y = 4.968, colour = "#e4703a", shape=4, size=2) +
+  #geom_vline(xintercept=3,color = "grey80", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=-3,color = "grey80", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=3,color = "grey80", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=-2,color = "grey30", linetype="dashed", linewidth=0.5)+
+  geom_hline(yintercept=2,color = "grey30", linetype="dashed", linewidth=0.5)+
+  scale_color_manual(values=c("#e4703a","#00BFC4","#b90f38"))+
+  scale_y_continuous(breaks=seq(-10,40, by = 10),
+                     labels=seq(-10,40, by = 10),
+                     limits=c(-10,40), expand=c(0,0)) +
+  scale_x_continuous(breaks=c(1,2,3,seq(5,20, by = 5)),
+                     labels=c(1,2,3,seq(5,20, by = 5)),
+                     limits=c(0.5,21), expand=c(0,0)) +
+  labs(y="Z-score",x=NULL,title="B cell")+
+   theme(panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        panel.grid.major.y = element_line(color = "grey80",
+                                          linewidth = 0.5,
+                                          linetype = 1),
+        panel.border = element_rect(color="black",fill=NA),
+        #text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15,face="bold"),
+        axis.text.y = element_text(size=15, face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        legend.position="none",
+        legend.title=element_blank(),
+        plot.title = element_text(face= "bold",size=15,hjust = 0.5),
+        panel.spacing = unit(0.2, "lines")) 
+p_lympho_or
+
 ###################################
 #merge
 remove_y <- theme(
@@ -451,6 +558,15 @@ pbox1 <- list(p_luad,
 pbox1_m <- ggarrange(plotlist = pbox1, ncol = 3, nrow = 1, 
                     common.legend = F, legend= NULL,  widths = c(1.4, 1.1,1.1))
 pbox1_m
+
+pbox_or <- list(p_luad_or,
+             p_lympho_or + remove_y, 
+             p_brca_or + remove_y)
+
+pbox1_or <- ggarrange(plotlist = pbox_or, ncol = 3, nrow = 1, 
+                    common.legend = F, legend= NULL,  widths = c(1.4, 1.1,1.1))
+pbox1_or
+
 ```
 
 # Extended Data Fig., 
@@ -459,7 +575,7 @@ pbox1_m
 ```{r}
 ###################################
 #COAD
-coad1 <- ca_long_ex2 %>% filter(CellType=="Colon-Ep") 
+coad1 <- ca_long_ex3 %>% filter(CellType=="Colon-Ep") 
 
 p_coad <- ggplot(data=coad1, aes(x = grp_coad.f, y = z.score, 
                                      color = grp_coad.f, shape=grp_coad.f)) +
@@ -491,7 +607,7 @@ p_coad <- ggplot(data=coad1, aes(x = grp_coad.f, y = z.score,
 
 ###################################
 #STAD
-stad1 <- ca_long_ex2 %>% filter(CellType=="Gastric-Ep") 
+stad1 <- ca_long_ex3 %>% filter(CellType=="Gastric-Ep") 
 
 p_stad <- ggplot(data=stad1, aes(x = grp_stad.f, y = z.score, 
                                      color = grp_stad.f, shape=grp_stad.f)) +
@@ -523,7 +639,7 @@ p_stad <- ggplot(data=stad1, aes(x = grp_stad.f, y = z.score,
 
 ###################################
 #OV
-ov1 <- ca_long_ex2 %>% filter(CellType=="Ovary-Ep") 
+ov1 <- ca_long_ex3 %>% filter(CellType=="Ovary-Ep") 
 
 p_ov <- ggplot(data=ov1, aes(x = grp_ov.f, y = z.score, 
                                      color = grp_ov.f, shape=grp_ov.f)) +
@@ -555,7 +671,7 @@ p_ov <- ggplot(data=ov1, aes(x = grp_ov.f, y = z.score,
 
 
 ###################################
-oligo1 <- ca_long_ex2 %>% filter(CellType=="Oligodend") 
+oligo1 <- ca_long_ex3 %>% filter(CellType=="Oligodend") 
 
 p_oligo <- ggplot(data=oligo1, aes(x = grp_oligo.f, y = z.score, 
                                      color = grp_oligo.f, shape=grp_oligo.f)) +
@@ -587,7 +703,7 @@ p_oligo <- ggplot(data=oligo1, aes(x = grp_oligo.f, y = z.score,
 
 
 ###################################
-neuron1 <- ca_long_ex2 %>% filter(CellType=="Neuron") 
+neuron1 <- ca_long_ex3 %>% filter(CellType=="Neuron") 
 
 p_neuron <- ggplot(data=neuron1, aes(x = grp_neuron.f, y = z.score, 
                                      color = grp_neuron.f, shape=grp_neuron.f)) +
