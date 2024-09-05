@@ -1,5 +1,5 @@
 ---
-title: "tSNESeqclassifier_3grps"
+title: "tSNE_Seqclassifier_3grps"
 author: "Jingru Yu"
 date: '2024-06-03'
 output: html_document
@@ -56,13 +56,6 @@ print_name <- function(x) {
 ## load R codes
 
 source(file.path(pathmeth,"mnp_training-master/R","RSpectra_pca.R"))
-
-pathmeth <- "D:/Jingru/methylation"
-pathdvdf <- "D:/Jingru/deconv/Data"
-pathref <- "D:/Jingru/references"
-
-pathsampBF="D:/Jingru/deconv/Data/XR_BFs/BF_covFiles"
-pathsampout="D:/Jingru/deconv/Output"
 
 pathref <- "D:/Jingru/references"
 pathpro <-"D:/Jingru/deconv/Data/Upload_processed" 
