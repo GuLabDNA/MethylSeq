@@ -7,7 +7,7 @@ output: html_document
 
 # Load packages
 
-```{r, message=FALSE, warning=FALSE}
+```{r, message=FALSE, warning=FALSE, message=FALSE}
 #rm(list=ls())
 options(scipen=999999999)
 
@@ -54,29 +54,28 @@ print_name <- function(x) {
 } #works differently inside and outside of a function
 
 ## load R codes
-
-source(file.path(pathmeth,"mnp_training-master/R","RSpectra_pca.R"))
-
-pathref <- "D:/Jingru/references"
 pathpro <-"D:/Jingru/deconv/Data/Upload_processed" 
+
+source(file.path(pathpro,"R_fixed/cite_Rsource","RSpectra_pca.R"))
+
 ```
 
 # t-SNE plots by pathological groups and sample types
 
 ```{r tSNE, message=FALSE, warning=FALSE}
 
-samp_clin <- read.xlsx(file.path(pathpro,
+samp_clin <- read.xlsx(file.path(pathpro,"clinical_info",
                               "206samples_all_clin_clean.xlsx"),
                     sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
     
 load(file=file.path(pathpro,"Seq_classifier",
-                    "24-07-02-TCGA_xr.anno_60k_LUAD.DLBC.CTRL.BRCA.GBM.Rdata"))
+                    "24-07-02-TCGA_seq.anno_60k_LUAD.DLBC.CTRL.BRCA.GBM.Rdata"))
 
 anno_train$Sample_tp.2cat <- ifelse(anno_train$Sample_tp.3cat=="FFPE","FFPE","BF")
 anno_train$TCGA_Project_subgrp=
       ifelse(anno_train$TCGA_Project_subgrp=="MCF GBM","GBM",anno_train$TCGA_Project_subgrp)
 
-load(file=file.path(pathdvdf,"Upload_processed/XRclassifier",
+load(file=file.path(pathpro,"Seq_classifier",
                     "LUAD.DLBC.CTRL.BRCA.GBM_CSF.FFPE_beta20k_impute_comb.RData"))
   or_index <- anno_train$TCGA_ID
   imp_df_filter_or <- imp_df_filter[or_index, ]
@@ -199,7 +198,7 @@ load(file=file.path(pathdvdf,"Upload_processed/XRclassifier",
 ################################    
 #make plots with average data
 
-test_m <- read.xlsx(file.path(pathdvdf,"Upload_processed/Seq_classifier",
+test_m <- read.xlsx(file.path(pathpro,"Seq_classifier",
           "24-07-02-score.comp_seqVS.array_18samples.xlsx"),
                        sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
 test_m2 <- test_m %>% 
