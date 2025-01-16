@@ -1,0 +1,662 @@
+---
+title: "chk_correlation"
+author: "Jingru Yu"
+date: '2024-07-01'
+output: html_document
+
+---
+
+# Load packages and paths
+
+```{r setup, include=FALSE}
+#rm(list=ls())
+
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(stringr)
+library(openxlsx)
+library(data.table) #detDT
+library(scales)
+
+library(ggpubr) #ggarrange
+library(RColorBrewer)
+
+### function cbind.fill, combine cols with different lengths
+cbind.fill<-function(...){
+    nm <- list(...) 
+    nm<-lapply(nm, as.matrix)
+    n <- max(sapply(nm, nrow)) 
+    do.call(cbind, lapply(nm, function (x) 
+    rbind(x, matrix(, n-nrow(x), ncol(x))))) 
+}
+
+pathdvdf <- "D:/Jingru/deconv/Data"
+pathmeth <- "D:/Jingru/methylation"
+pathref <- "D:/Jingru/references"
+pathclass <- "D:/Jingru/classification"
+pathsub <- "W:/User/Jingru/Data/subsample"
+
+#get all CpGs
+allCpG <- as.data.frame(fread(
+  file.path("W:/User/Jingru/Data/allCpG_hg38_only_chr_sorted.bed"),
+  header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="")) 
+colnames(allCpG) <- c("chr","start","end")
+allCpG <- allCpG %>% mutate(
+  startCpG = 1:nrow(allCpG),
+  chr_loc=paste0(chr,"_",start,"_",end))
+head(allCpG)
+
+source(file.path("D:/Jingru/deconv/Program/R_fixed","correlation_plot2_clean.R"))
+
+
+```
+
+# Load WGBS/RRBS/XRBS/EPIC of K562
+
+```{r PublicK562}
+
+#WGBS
+k562_wgbs <- fread(file.path(pathref,"RefData/K562_WGBS/cut15bp",
+  "WGBS_SRR4235743-merged.cov.SNPfiltered_clean.txt"),quote="",sep="\t")
+colnames(k562_wgbs) <- c("chr","start","end","meth.cnt","depth")
+
+k562_wgbs_2 <- as.data.frame(k562_wgbs) %>% filter(depth>=15) %>%
+      mutate(beta=round(meth.cnt/depth,digits=5),
+             chr_cpg_loc = paste0(chr,"_",start,"_",end))  
+
+# RRBS
+#2024-0802 new processed data
+k562_rrbs <- fread(file.path(pathref,"RefData/K562_RRBS/ENCFF000MHC-hg38_SE",
+  "ENCFF000MHC-merged.cov.SNPfiltered_clean.txt"),quote="",sep="\t")
+colnames(k562_rrbs) <- c("chr","start","end","meth.cnt","depth")
+
+k562_rrbs_2 <- as.data.frame(k562_rrbs) %>% filter(depth>=15) %>%
+      mutate(beta=round(meth.cnt/depth,digits=5),
+             chr_cpg_loc = paste0(chr,"_",start,"_",end)) 
+
+#K562rrbs_3.8b-merged.cov.SNPfiltered_clean.txt, not good
+k562_rrbscomb <- fread(file.path(pathref,"RefData/K562_RRBS/K562rrbs_comb2011-hg38_SE",
+  "K562rrbs_comb2011-merged.cov.SNPfiltered_clean.txt"),quote="",sep="\t")
+colnames(k562_rrbscomb) <- c("chr","start","end","meth.cnt","depth")
+
+k562_rrbs_3 <- as.data.frame(k562_rrbscomb) %>% filter(depth>=15) %>%
+      mutate(beta=round(meth.cnt/depth,digits=5),
+             chr_cpg_loc = paste0(chr,"_",start,"_",end)) 
+
+# XRBS
+#0-based data, with CpGs from top and bottom strand as an entity
+k562_xrbs <- read.table(file.path(pathref,"RefData/K562_XRBS/GSE149954_RAW",
+                                  "allCpG_xrbs_k562_sum2-5cov.bed"),
+                     quote="",sep="\t")
+colnames(k562_xrbs) <- c("chr","start","end","meth.cnt","depth")
+
+k562_xrbs2_chr <- k562_xrbs %>%
+      mutate(beta=round(meth.cnt/depth,digits=5),
+             chr_cpg_loc = paste0(chr,"_",start,"_",end)) %>% filter(depth>=15)
+
+# EPIC
+# from R script "13EPIC_for_correlation.Rmd"
+load(file=file.path(pathref,"RefData/K562_EPIC", "k562_epic_hg38.RData")) #k562_hg38_betas
+
+#0-based data, with CpGs from top and bottom strand as an entity
+k562_epic1 <- k562_hg38_betas[,c(2,3,4,5)]
+colnames(k562_epic1)[4] <- "beta"
+
+k562_epic1_chr <- k562_epic1 %>%
+       mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end))
+
+```
+
+# Load K562 data from different methods
+
+```{r K562_FLEXseq}
+
+pathtemp <- "D:/Jingru/references/RefData/K562_XR2021"
+
+f="K56210ngXR21A_comb"
+rep1_1 <- fread(file.path(pathtemp,
+                     paste0(f,"-hg38_PE/",f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(rep1_1) <- c("chr","start","end","meth.cnt","depth")
+
+rep1_2 <- as.data.frame(rep1_1) %>% filter(depth>=15) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+
+rep1_10cov <- as.data.frame(rep1_1) %>% filter(depth>=10) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+
+f="K56210U10w1w2XR22A_comb"
+rep2_1 <- fread(file.path(pathtemp,
+                     paste0(f,"-hg38_PE/",f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(rep2_1) <- c("chr","start","end","meth.cnt","depth")
+
+rep2_2 <- as.data.frame(rep2_1) %>% filter(depth>=15) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+
+rep2_10cov <- as.data.frame(rep2_1) %>% filter(depth>=10) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+
+f="K56210ngrep12_comb"
+rep12_1 <- fread(file.path(pathtemp,
+                     paste0(f,"-hg38_PE/",f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(rep12_1) <- c("chr","start","end","meth.cnt","depth")
+
+rep12_2 <- as.data.frame(rep12_1) %>% filter(depth>=15) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+
+rep12_comb <- merge(rep2_10cov, rep1_10cov, by="chr_cpg_loc",all.x=TRUE,all.y=TRUE)
+rep12_comb[is.na(rep12_comb)] <- 0
+rep12_comb1 <- rep12_comb %>%
+  mutate(meth.cnt=meth.cnt.x+meth.cnt.y,
+         depth=depth.x+depth.y,
+         beta=round(meth.cnt/depth, digits=5))
+
+rep12.10cov_comb.15cov <- as.data.frame(rep12_comb1) %>% 
+  filter(depth>=15) %>%
+  select( "meth.cnt","depth","chr_cpg_loc","beta")
+
+rep12.10cov_comb.15cov_clean <- rep12_comb1[,c(1,14,15)] %>% 
+  filter(depth>=15) %>%
+  mutate(chr=sapply(str_split(chr_cpg_loc, "_",  n = 3), `[`, 1),
+         start=as.numeric(sapply(str_split(chr_cpg_loc, "_",  n = 3), `[`, 2)),
+         end=as.numeric(sapply(str_split(chr_cpg_loc, "_",  n = 3), `[`, 3))) %>%
+  select(chr,start,end,meth.cnt,depth)
+
+```
+
+# load K562 input
+
+```{r K562dil_1w.q1q2}
+pathtemp <- "D:/Jingru/deconv/Data/correlation_df"
+
+f="K5621U10XR22A_comb"
+k562.1ng_1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(k562.1ng_1) <- c("chr","start","end","meth.cnt","depth")
+
+k562.1ng_2 <- as.data.frame(k562.1ng_1) %>% filter(depth>=15) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+
+f="K56210U10XR22A_comb"
+k562.10ng_1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(k562.10ng_1) <- c("chr","start","end","meth.cnt","depth")
+
+k562.10ng_2 <- as.data.frame(k562.10ng_1) %>% filter(depth>=15) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+
+f="K562100ngXR23A_comb"
+k562.100ng_1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(k562.100ng_1) <- c("chr","start","end","meth.cnt","depth")
+
+k562.100ng_2 <- as.data.frame(k562.100ng_1) %>% filter(depth>=15) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+
+
+p10ngvs1ng_15cov <- CorrelatePlot2(samp1=k562.10ng_2, samp2=k562.1ng_2, 
+  assay_xr="Input 10ng", assay="Input 1ng", covnum=15)
+p10ngvs1ng_15cov2 <- p10ngvs1ng_15cov + ggtitle("Pearson's r = 0.97")+
+  theme(plot.title = element_text(hjust = 0.5))
+#0.8781202 0.9755608
+# [1] "Sample1 CpGs: 4439720"
+# [1] "Sample2 CpGs: 2864445"
+# [1] "Combined CpGs: 2627410"
+
+# [1] "Sample1 CpGs: 6172381"
+# [1] "Sample2 CpGs: 2864445"
+# [1] "Combined CpGs: 2797992"
+#       rho       cor 
+# 0.8857944 0.9786657 
+
+# [1] "Sample1 CpGs: 3155774"
+# [1] "Sample2 CpGs: 710882"
+# [1] "Combined CpGs: 689824"
+#       rho       cor 
+# 0.8639375 0.9745506 
+p10ngvs100ng_15cov <- CorrelatePlot2(samp1=k562.10ng_2, samp2=k562.100ng_2, 
+  assay_xr="Input 10ng", assay="Input 100ng", covnum=15)
+p10ngvs100ng_15cov2 <- p10ngvs100ng_15cov + ggtitle("Pearson's r = 0.98")+
+  theme(plot.title = element_text(hjust = 0.5))
+#0.8913469 0.9767191
+# [1] "Sample1 CpGs: 4439720"
+# [1] "Sample2 CpGs: 5379545"
+# [1] "Combined CpGs: 4039302"
+
+# [1] "Sample1 CpGs: 6172381"
+# [1] "Sample2 CpGs: 5379545"
+# [1] "Combined CpGs: 4976212"
+#       rho       cor 
+# 0.9035830 0.9783916 
+
+# [1] "Sample1 CpGs: 3155774"
+# [1] "Sample2 CpGs: 5379545"
+# [1] "Combined CpGs: 3036387"
+#       rho       cor 
+# 0.8882047 0.9774506 
+
+
+pm_k562 <- ggarrange(p10ngvs100ng_15cov2,p10ngvs1ng_15cov2,
+                 common.legend = TRUE, legend= "bottom",
+                 nrow = 1)
+pm_k562
+# dev.new()
+# pdf(file=file.path(pathref,"Output/correlation",
+#                    paste0(str_sub(Sys.Date(), start = 3), "-K562input_correlation10ng_15cov.pdf")),
+#     width = 4.65, height = 3.2, useDingbats = FALSE)
+# pm_k562
+# dev.off()
+
+```
+
+# Heatmap
+
+```{r corre_heatmap}
+source(file.path("D:/Jingru/deconv/Program/R_fixed","correlation_plot2_clean.R"))
+
+##########################################
+#rep1 vs. rep2.
+
+K562rep <- CorrelatePlot2(samp1=rep1_2, samp2=rep2_2, 
+  assay_xr="FLEXseq, rep1", assay="FLEXseq, rep2", covnum=15)
+K562rep_2 <- K562rep + ggtitle("Pearson's r = 0.98")+
+  theme(plot.title = element_text(hjust = 0.5))
+#0.8904127 0.9781759(use)
+# [1] "Sample1 CpGs: 4439720"
+# [1] "Sample2 CpGs: 6172381"
+# [1] "Combined CpGs: 4267918"
+
+##########################################
+#WGBS vs. enriched-seq
+#enriched-seq vs. EPIC
+K562_wgbs2 <- CorrelatePlot2(samp1=k562_wgbs_2, samp2=rep12.10cov_comb.15cov, 
+  assay_xr='WGBS', assay="FLEXseq, rep1&2(v2)", covnum=15)
+K562_wgbs2_2 <- K562_wgbs2 + ggtitle("Pearson's r = 0.97")+
+  theme(plot.title = element_text(hjust = 0.5))
+#0.8793548 0.9674620(use)
+# [1] "Sample1 CpGs: 15845443"
+# [1] "Sample2 CpGs: 6668486"
+# [1] "Combined CpGs: 3384155"
+
+pm1 <- ggarrange(K562rep_2,K562_wgbs2_2,
+                 common.legend = TRUE, legend= "bottom",
+                 nrow = 1)
+pm1
+
+# dev.new()
+# pdf(file=file.path(pathref,"Output/correlation",
+#                    paste0(str_sub(Sys.Date(), start = 3), "-WGBS.enriched_15cov.pdf")),
+#     width = 7, height = 3.2, useDingbats = FALSE)
+# pm1
+# dev.off()
+
+##########################################
+#Supplementary
+wgbs_rrbsv2 <- CorrelatePlot2(samp1=k562_wgbs_2, samp2=k562_rrbs_2, 
+                           assay_xr="WGBS", assay="RRBS", covnum=15)
+wgbs_rrbsv2_2 <- wgbs_rrbsv2 + ggtitle("Pearson's r = 0.97")+
+  theme(plot.title = element_text(hjust = 0.5))
+# 0.8590027 0.9679179
+# [1] "Sample1 CpGs: 15845443"
+# [1] "Sample2 CpGs: 901907"
+# [1] "Combined CpGs: 175704"
+
+wgbs_rrbsv3 <- CorrelatePlot2(samp1=k562_wgbs_2, samp2=k562_rrbs_3, 
+                           assay_xr="WGBS", assay="RRBS_comb", covnum=15)
+wgbs_rrbsv3_2 <- wgbs_rrbsv3 + ggtitle("Pearson's r = 0.97")+
+  theme(plot.title = element_text(hjust = 0.5))
+# 0.8566355 0.9651182 (use)
+# [1] "Sample1 CpGs: 15845443"
+# [1] "Sample2 CpGs: 907597"
+# [1] "Combined CpGs: 176676"
+
+wgbs_xrbs <- CorrelatePlot2(samp1=k562_wgbs_2, samp2=k562_xrbs2_chr, 
+                           assay_xr="WGBS", assay="XRBS", covnum=15)
+wgbs_xrbs_2 <- wgbs_xrbs + ggtitle("Pearson's r = 0.91")+
+  theme(plot.title = element_text(hjust = 0.5))
+# 0.7778747 0.9085829 
+# [1] "Sample1 CpGs: 15845443"
+# [1] "Sample2 CpGs: 1697136"
+# [1] "Combined CpGs: 1032418"
+
+xr_epic <- CorrelatePlot2(samp1=rep12.10cov_comb.15cov, samp2=k562_epic1_chr,
+                           assay_xr="XR-methylSeq, rep1&2", assay="EPIC", covnum=15)
+xr_epic_2 <- xr_epic + ggtitle("Pearson's r = 0.96")+
+  theme(plot.title = element_text(hjust = 0.5))
+# 0.8426689 0.9622628
+# [1] "Sample1 CpGs: 6668486"
+# [1] "Sample2 CpGs: 832845"
+# [1] "Combined CpGs: 259075"
+
+
+xr_rrbsv2 <- CorrelatePlot2(samp1=rep12.10cov_comb.15cov, samp2=k562_rrbs_2,
+                           assay_xr="XR-methylSeq, rep1&2", assay="RRBS", covnum=15) 
+xr_rrbsv2_2 <- xr_rrbsv2 + ggtitle("Pearson's r = 0.96")+
+  theme(plot.title = element_text(hjust = 0.5))
+# 0.8439486 0.9632171
+# [1] "Sample1 CpGs: 6668486"
+# [1] "Sample2 CpGs: 901907"
+# [1] "Combined CpGs: 333127"
+
+xr_rrbsv3 <- CorrelatePlot2(samp1=rep12.10cov_comb.15cov, samp2=k562_rrbs_3,
+                           assay_xr="XR-methylSeq, rep1&2", assay="RRBS_comb", covnum=15) 
+xr_rrbsv3_2 <- xr_rrbsv3 + ggtitle("Pearson's r = 0.96")+
+  theme(plot.title = element_text(hjust = 0.5))
+# 0.8409880 0.9596813
+# [1] "Sample1 CpGs: 6668486"
+# [1] "Sample2 CpGs: 907597"
+# [1] "Combined CpGs: 335476"
+
+xr_xrbs <- CorrelatePlot2(samp1=rep12.10cov_comb.15cov, samp2=k562_xrbs2_chr,
+                           assay_xr="XR-methylSeq, rep1&2", assay="XRBS", covnum=15)   
+xr_xrbs_2 <- xr_xrbs + ggtitle("Pearson's r = 0.91")+
+  theme(plot.title = element_text(hjust = 0.5))
+# 0.7788166 0.9115793 
+# [1] "Sample1 CpGs: 6668486"
+# [1] "Sample2 CpGs: 1697136"
+# [1] "Combined CpGs: 1579464"
+
+pm_wgbs.xr.othr <- ggarrange(wgbs_rrbsv3_2,xr_rrbsv3_2,wgbs_xrbs_2,xr_xrbs_2,
+                 common.legend = TRUE, legend= "bottom",
+                 nrow = 2)
+pm_wgbs.xr.othr
+#use in paper
+
+# dev.new()
+# pdf(file=file.path(pathref,"Output/correlation",
+#                    paste0(str_sub(Sys.Date(), start = 3), "-WGBS.XR_vsRRcomb.XRBS_15cov.pdf")),
+#     width = 9.5, height = 3.2, useDingbats = FALSE)
+# pm_wgbs.xr.othr
+# dev.off()
+
+```
+
+# Input titrations
+
+```{r input_titrations}
+
+GetDataCor <- function(pathtemp,f,ncov){
+df1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(df1) <- c("chr","start","end","meth.cnt","depth")
+
+df2 <- as.data.frame(df1) %>% filter(depth>=ncov) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+print(nrow(df2))
+return(df2)
+}
+
+#15cov
+BF3713dil250ng_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil250ngXR23B_comb",ncov=15)
+#4049119, cov=15
+BF3713dil100ng_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil100ngXR23B_comb",ncov=15)
+#5016125, cov=15
+BF3713dil10ng_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil10ngXR23B_comb",ncov=15)
+#4567760, cov=15
+BF3713dil1ng_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil1ngXR23B_comb",ncov=15)
+#2776657, COV=15
+BF3713dil100pg_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil100pgXR23B_comb",ncov=15)
+#7673, cov=15
+BF3713dil250pg_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil250pgXR23B_comb",ncov=15)
+#20007, cov=15
+##########################
+
+p10ngvs1ng_15cov <- CorrelatePlot2(samp1=BF3713dil10ng_15cov, samp2=BF3713dil1ng_15cov, 
+  assay_xr="Input 10ng", assay="Input 1ng", covnum=15)
+p10ngvs1ng_15cov2 <- p10ngvs1ng_15cov + ggtitle("Pearson's r = 0.90")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.8638411 0.8972064 #cov=15
+# [1] "Sample1 CpGs: 4567760"
+# [1] "Sample2 CpGs: 2776657"
+# [1] "Combined CpGs: 2566152"
+
+p10ngvs250ng_15cov <- CorrelatePlot2(samp1=BF3713dil10ng_15cov, samp2=BF3713dil250ng_15cov, 
+  assay_xr="Input 10ng", assay="Input 250ng", covnum=15)
+p10ngvs250ng_15cov2 <- p10ngvs250ng_15cov + ggtitle("Pearson's r = 0.89")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.8744668 0.8923540  #cov=15
+# [1] "Sample1 CpGs: 4567760"
+# [1] "Sample2 CpGs: 4049119"
+# [1] "Combined CpGs: 3523195"
+
+p10ngvs100ng_15cov <- CorrelatePlot2(samp1=BF3713dil10ng_15cov, samp2=BF3713dil100ng_15cov, 
+  assay_xr="Input 10ng", assay="Input 100ng", covnum=15)
+p10ngvs100ng_15cov2 <- p10ngvs100ng_15cov + ggtitle("Pearson's r = 0.90")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.8881856 0.9013358  #cov=15
+# [1] "Sample1 CpGs: 4567760"
+# [1] "Sample2 CpGs: 5016125"
+# [1] "Combined CpGs: 4061825"
+
+p10ngvs250pg_15cov <- CorrelatePlot2(samp1=BF3713dil10ng_15cov, samp2=BF3713dil250pg_15cov, 
+  assay_xr="Input 10ng", assay="Input 250pg", covnum=15)
+p10ngvs250pg_15cov2 <- p10ngvs250pg_15cov + ggtitle("Pearson's r = 0.91")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.8605951 0.909687 #cov=15
+# [1] "Sample1 CpGs: 4567760"
+# [1] "Sample2 CpGs: 20007"
+# [1] "Combined CpGs: 19263"
+
+p10ngvs100pg_15cov <- CorrelatePlot2(samp1=BF3713dil10ng_15cov, samp2=BF3713dil100pg_15cov, 
+  assay_xr="Input 10ng", assay="Input 100pg", covnum=15)
+p10ngvs100pg_15cov2 <- p10ngvs100pg_15cov + ggtitle("Pearson's r = 0.93")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.8931375 0.9263076 #cov=15
+# [1] "Sample1 CpGs: 4567760"
+# [1] "Sample2 CpGs: 7573"
+# [1] "Combined CpGs: 7120"
+
+pm_bf3713 <- ggarrange(p10ngvs250ng_15cov2,p10ngvs100ng_15cov2,p10ngvs1ng_15cov2,
+                 p10ngvs250pg_15cov2,p10ngvs100pg_15cov2,
+                 common.legend = TRUE, legend= "bottom",
+                 ncol = 3, nrow = 2)
+pm_bf3713
+
+#4049119 5016125 4567760 2776657 20007
+# save(pm_bf3713,file=file.path(pathref,"Output/correlation", 
+#                    paste0(str_sub(Sys.Date(), start = 3), 
+# "-BF3713dil.15cov_vs10ng.corr.RData")))
+
+######################################################
+#10cov
+
+BF3713dil250ng_10cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil250ngXR23B_comb",ncov=10)
+#5494260
+BF3713dil100ng_10cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil100ngXR23B_comb",ncov=10)
+#6369439
+
+BF3713dil10ng_10cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil10ngXR23B_comb",ncov=10)
+#6014646
+
+BF3713dil1ng_10cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil1ngXR23B_comb",ncov=10)
+#4469456
+
+BF3713dil100pg_10cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil100pgXR23B_comb",ncov=10)
+#26956
+
+BF3713dil250pg_10cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil250pgXR23B_comb",ncov=10)
+#117927
+
+p10ngvs1ng_10cov <- CorrelatePlot2(samp1=BF3713dil10ng_10cov, samp2=BF3713dil1ng_10cov, 
+  assay_xr="Input 10ng", assay="Input 1ng", covnum=10)
+p10ngvs1ng_10cov2 <- p10ngvs1ng_10cov + ggtitle("Pearson's r = 0.87")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.8555947 0.8673794  #cov=10
+
+p10ngvs250ng_10cov <- CorrelatePlot2(samp1=BF3713dil10ng_10cov, samp2=BF3713dil250ng_10cov, 
+  assay_xr="Input 10ng", assay="Input 250ng", covnum=10)
+p10ngvs250ng_10cov2 <- p10ngvs250ng_10cov + ggtitle("Pearson's r = 0.86")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.8575225 0.8635734   #cov=10
+
+p10ngvs100ng_10cov <- CorrelatePlot2(samp1=BF3713dil10ng_10cov, samp2=BF3713dil100ng_10cov, 
+  assay_xr="Input 10ng", assay="Input 100ng", covnum=10)
+p10ngvs100ng_10cov2 <- p10ngvs100ng_10cov + ggtitle("Pearson's r = 0.87")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.8719118 0.8747167  #cov=10
+
+p10ngvs250pg_10cov <- CorrelatePlot2(samp1=BF3713dil10ng_10cov, samp2=BF3713dil250pg_10cov, 
+  assay_xr="Input 10ng", assay="Input 250pg", covnum=10)
+p10ngvs250pg_10cov2 <- p10ngvs250pg_10cov + ggtitle("Pearson's r = 0.85")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.7724961 0.85103137 #cov=15
+
+p10ngvs100pg_10cov <- CorrelatePlot2(samp1=BF3713dil10ng_10cov, samp2=BF3713dil100pg_10cov, 
+  assay_xr="Input 10ng", assay="Input 100pg", covnum=10)
+p10ngvs100pg_10cov2 <- p10ngvs100pg_10cov + ggtitle("Pearson's r = 0.86")+
+  theme(plot.title = element_text(hjust = 0.5))
+#       rho       cor 
+#0.806203 0.864816  #cov=15
+
+
+pm_bf3713_10cov <- ggarrange(p10ngvs250ng_10cov2,p10ngvs100ng_10cov2,p10ngvs1ng_10cov2,
+                 p10ngvs250pg_10cov2,p10ngvs100pg_10cov2,
+                 common.legend = TRUE, legend= "bottom",
+                 ncol = 3, nrow = 2)
+pm_bf3713_10cov
+
+# dev.new()
+# pdf(file=file.path(pathref,"Output/correlation",
+#                    paste0(str_sub(Sys.Date(), start = 3), "-BF3713dil.10cov_vs10ng.corr.pdf")),
+#     width = 7, height = 5.7, useDingbats = FALSE)
+# pm_bf3713_10cov
+# dev.off()
+
+```
+
+```{r FFPE_titrations}
+GetDataCor <- function(pathtemp,f,ncov){
+df1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(df1) <- c("chr","start","end","meth.cnt","depth")
+
+df2 <- as.data.frame(df1) %>% filter(depth>=ncov) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+print(nrow(df2))
+return(df2)
+}
+
+################################3
+#15cov
+ffpe50_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE50XR23B_comb",ncov=15)
+#6079610, cov=10
+#4531803, cov=15
+
+ffpe10_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE10XR23B_comb",ncov=15)
+#6498662, cov=10
+#5042679, cov=15
+ffpe5_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE5XR23B_comb",ncov=15)
+#5732418, cov=10
+#4023812, cov=15
+ffpe1_15cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE1XR24A_comb",ncov=15)
+#834532, cov=10
+#220286, cov=15
+
+p10ngvs50ng_15cov <- CorrelatePlot2(samp1=ffpe10_15cov, samp2=ffpe50_15cov, 
+  assay_xr="Input 10ng", assay="Input 50ng", covnum=15)
+p10ngvs50ng_15cov2 <- p10ngvs50ng_15cov + ggtitle("Pearson's r = 0.96")+
+  theme(plot.title = element_text(hjust = 0.5))
+#      rho       cor 
+#0.8098801 0.9409763, cov=10
+#0.8331132 0.9565296, cov=15
+# [1] "Sample1 CpGs: 5042679"
+# [1] "Sample2 CpGs: 4531803"
+# [1] "Combined CpGs: 4067301"
+#       rho       cor 
+# 0.8331132 0.9565296 
+p10ngvs5ng_15cov <- CorrelatePlot2(samp1=ffpe10_15cov, samp2=ffpe5_15cov, 
+  assay_xr="Input 10ng", assay="Input 5ng", covnum=15)
+p10ngvs5ng_15cov2 <- p10ngvs5ng_15cov + ggtitle("Pearson's r = 0.96")+
+  theme(plot.title = element_text(hjust = 0.5))
+#0.8034191 0.9393047
+#0.8268879 0.9557422, cov=15
+# [1] "Sample1 CpGs: 5042679"
+# [1] "Sample2 CpGs: 4023812"
+# [1] "Combined CpGs: 3680616"
+#       rho       cor 
+# 0.8268879 0.9557422 
+p10ngvs1ng_15cov <- CorrelatePlot2(samp1=ffpe10_15cov, samp2=ffpe1_15cov, 
+  assay_xr="Input 10ng", assay="Input 1ng", covnum=15)
+p10ngvs1ng_15cov2 <- p10ngvs1ng_15cov + ggtitle("Pearson's r = 0.90")+
+  theme(plot.title = element_text(hjust = 0.5))
+#0.6844943 0.8979925, cov=10
+# 0.7113987 0.9022243, cov=15
+# [1] "Sample1 CpGs: 5042679"
+# [1] "Sample2 CpGs: 220286"
+# [1] "Combined CpGs: 218475"
+#       rho       cor 
+# 0.7113987 0.9022243 
+
+
+pm_ffpe_15cov <- ggarrange(p10ngvs50ng_15cov2,p10ngvs5ng_15cov2,p10ngvs1ng_15cov2,
+                 common.legend = TRUE, legend= "bottom",
+                 ncol = 3)
+pm_ffpe_15cov
+
+# dev.new()
+# pdf(file=file.path(pathref,"Output/correlation",
+#                    paste0(str_sub(Sys.Date(), start = 3), "-FFPE_titration_15cov.pdf")),
+#     width = 7, height = 3.1, useDingbats = FALSE)
+# pm_ffpe_15cov
+# dev.off()
+
+```

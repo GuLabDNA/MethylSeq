@@ -1,0 +1,890 @@
+---
+title: "pheatmap_clinical"
+author: "Jingru Yu"
+date: '2024-12-08'
+output: html_document
+
+---
+
+# Load package
+
+```{r, warning=FALSE, message=FALSE}
+#rm(list=ls())
+
+library(dplyr)
+library(tidyverse)
+library(stringr)
+library(openxlsx)
+library(data.table) #detDT
+library(scales)
+library("writexl") 
+library(matrixStats) #colMeans, colMedians
+library(rstatix) #wilx
+#BiocManager::install("ComplexHeatmap")
+# Load the pheatmap package
+library (pheatmap)
+library(Hmisc) #describe
+library(circlize)
+library(ComplexHeatmap)
+library(ggplot2)
+library(ggbreak) #scale_y_break
+library(cowplot) #ggdraw, a simple add-on to ggplot
+library(ggrepel) #geom_text_repel
+library(ggforce) # for 'geom_arc_bar'
+library(ggrepel)
+library(ggpubr) #ggarrange
+library(beeswarm)
+library(dichromat)
+library(RColorBrewer)
+library(ggbeeswarm)
+
+library(pROC)     # estimate / display prediction performance
+library(ROCR)
+library(vip)      # for variable importance plots
+library(metrica)
+library(purrr)
+
+#install.packages("ggpmisc")
+library(ggpmisc)
+require(broom)
+
+# load paths
+pathmeth <- "D:/Jingru/methylation"
+pathdvdf <- "D:/Jingru/deconv/Data"
+pathref <- "D:/Jingru/references"
+pathsampout <-"D:/Jingru/deconv/Output" 
+
+path_up <- "D:/Jingru/deconv/Data/Upload_processed/MethylSeq"
+```
+
+
+```{r Age}
+
+#after manually cleaning, input the data
+######################
+samp_res2 <- read.xlsx(file.path(path_up, "clinical_info/24-1208-212samples_res_final.xlsx"),
+                      sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+
+or_tp <- c("CSF", "non-CSF BF", "FFPE")
+or_caco <- c("Control", "Case")
+samp_res_final3 <- samp_res2 %>% 
+    arrange(factor(Sample_tp.3cat, levels = or_tp))%>% 
+    arrange(factor(ca_co, levels = or_caco))
+
+
+samp_res_final3$TCGA_Project <- ifelse(samp_res_final3$BF_id=="BF3020","Angiosarcoma",
+                                       samp_res_final3$TCGA_Project)
+samp_res_final3$TCGA_Project_subgrp <- ifelse(samp_res_final3$BF_id=="BF3020","Angiosarcoma",
+                                       samp_res_final3$TCGA_Project_subgrp)
+samp_res_final3$Path_diagnosis <- ifelse(samp_res_final3$BF_id=="BF3020","Angiosarcoma",
+                                       samp_res_final3$Path_diagnosis)
+samp_res_final3$Diag_TCGA <- ifelse(samp_res_final3$BF_id=="BF3020","Angiosarcoma",
+                                       samp_res_final3$Diag_TCGA)
+samp_res_final3$Path_diagnosis <- ifelse(samp_res_final3$Path_diagnosis=="Control","Negative",
+                                       samp_res_final3$Path_diagnosis)
+
+#CSF
+samp_res_csf <- samp_res_final3[samp_res_final3$Sample_type=="CSF",] 
+
+
+ca <- samp_res_csf[samp_res_csf$ca_co=="Case",]
+co <- samp_res_csf[samp_res_csf$ca_co=="Control",]
+quantile(ca$purity.abs)
+ 
+shapiro.test(ca$Age)
+shapiro.test(co$Age)
+
+stat_df <- samp_res_csf %>% 
+group_by(ca_co) %>%
+  summarise(
+    count = n(),
+    mean = mean(Age, na.rm = TRUE),
+    sd = sd(Age, na.rm = TRUE),
+    median= median(Age, na.rm = TRUE)
+  )
+
+wilcox.test(Age ~ ca_co, data = samp_res_final3[samp_res_final3$Sample_type=="CSF",],na.rm=T)
+#W = 1934.5, p-value = 0.0007227
+
+mtab <- table(samp_res_csf$Sex,samp_res_csf$ca_co)
+chisq.test(mtab) # Prints test summary
+
+```
+
+# pheatmap only CSF
+
+```{r pheatmap_CSF}
+samp_res_csf <- samp_res_final3[samp_res_final3$Sample_type=="CSF",]
+samp_res_csf <- samp_res_csf[order(samp_res_csf$purity.abs),]
+samp_res_csf$TF_50cat <- ifelse(samp_res_csf$TF_cat %in% c("0-30","30-50"),
+                                "0-50","50+")
+
+samp_res_csf2 <- samp_res_csf[samp_res_csf$Deconvolution!="N/a",] %>% 
+  mutate(deconv_2cat=ifelse(Deconvolution=="Reference",0,1),
+         flow_clean_2cat=ifelse(flow_clean=="Positive",1,0),
+         cyto_clean_2cat=ifelse(cyto_clean=="Positive",1,0),
+         cyto.flow_2cat=ifelse(flow_clean_2cat+cyto_clean_2cat>=1,"Positive","Non-positive"))
+
+samp_res_csfca <- samp_res_csf2[samp_res_csf2$ca_co=="Case",]
+table(samp_res_csfca$TF_cat, useNA = "ifany")
+table(samp_res_csfca$TF_50cat, useNA = "ifany")
+table(samp_res_csfca$Inclusion2)
+table(samp_res_csfca$flow_clean)
+table(samp_res_csfca$cyto_clean)
+table(samp_res_csfca$cyto.flow_2cat)
+
+ex1 <- samp_res_csfca[,c("BF_id","cyto.flow_2cat")]
+colnames(ex1) <- c("BF_id","res")
+ex1$grp="Clinical testing"
+ex2 <- samp_res_csfca[,c("BF_id","Deconvolution")]
+colnames(ex2) <- c("BF_id","res")
+ex2$grp="FLEXseq prediction"
+
+
+ex_long <- rbind(ex1,ex2)
+tab1 <- as.data.frame(table(ex_long$res,ex_long$grp))
+colnames(tab1) <- c("Results","Method","Frequence")
+tab1$Results.f <- factor(as.factor(tab1$Results),order=T,
+                         levels=c("Positive","Non-positive",
+                                  "Matched","Indeterminate","Misleading profile"),
+                         labels=c("Positive","Non-positive",
+                                  "Positive","Positive","Positive"))
+
+res_code <- c("Positive"="#177e89","Non-positive"="#db3a34") 
+         # "Matched"="#00A087FF","Indeterminate"="#f79246","Misleading"="#b90f38"
+# Create a clustered histogram
+p1 <- ggplot(data=tab1, aes(x = Method, y = Frequence, fill = Results.f)) +
+  geom_col(position = "stack",width=0.5) +
+  #geom_line(aes(y=Freq), size=2, color="Red") +
+  scale_fill_manual(values = res_code) + 
+  labs(x = "Method", y = "Frequence") +
+  scale_y_continuous(breaks=seq(0, 60, by = 20),
+                     labels=seq(0, 60, by = 20), limits=c(0,60)) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        panel.grid.major.y = element_line(color = "grey80",
+                                          linewidth = 0.5,
+                                          linetype = 1),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=9, face="bold"),
+        axis.text.x = element_text(size=9, angle=40,hjust=1),
+        axis.text.y = element_text(size=9, face="bold"),
+        axis.title=element_text(size=9,face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank()) + 
+  guides(fill = guide_legend(ncol = 2))
+p1 
+
+# pdf(file=file.path(path_csf,"Output",
+#     paste0(str_sub(Sys.Date(), start = 3),"-CSFcases_clinicaltest.vs.seq.pdf")),
+#     width = 3, height = 5, useDingbats = FALSE)
+# p1
+# dev.off()
+
+#CNA(-)
+ex3 <- samp_res_csfca[samp_res_csfca$BF_id %in% c("BF3269","BF3723","BF3811"),]
+#CNV(+)
+ex4 <- samp_res_csfca[samp_res_csfca$CNA_calls=="+",]
+table(ex4$Composite)
+     # Indeterminate            Matched Misleading profile 
+     #             3                 48                  2 
+                 
+samp_res_csf.nopos <- samp_res_csf2[samp_res_csf2$cyto_clean_2cat==0
+                                    & samp_res_csf2$flow_clean_2cat==0,]
+
+table(samp_res_csf.nopos$Deconvolution)
+ # Indeterminate            Matched Misleading profile           Negative 
+ #                 2                 15                  1                 50 
+                 
+table(samp_res_csf.nopos$flow_clean_2cat)
+table(samp_res_csf.nopos$flow_clean_2cat,samp_res_csf.nopos$deconv_2cat)
+table(samp_res_csf.nopos$cyto_clean_2cat,samp_res_csf.nopos$deconv_2cat)
+
+table(samp_res_csf2$flow_clean_2cat)
+table(samp_res_csf2$deconv_2cat)
+
+table(samp_res_csf2$flow_clean_2cat, samp_res_csf2$cyto_clean_2cat)
+
+samp_res_csf.pos <- samp_res_csf2[samp_res_csf2$deconv_2cat==1,]
+table(samp_res_csf2$flow_clean_2cat,samp_res_csf2$cyto_clean_2cat)
+
+table(samp_res_csf2$Deconvolution, samp_res_csf2$flow_clean_2cat, samp_res_csf2$cyto_clean_2cat)
+
+
+rm(.Random.seed, envir=globalenv())
+
+set.seed (23951)
+meth <- matrix (rnorm (212), nrow = 2, ncol = 106)
+colnames(meth) <- paste0("Sample_", 1:106)
+rownames (meth) <- paste0 ("Gene_", 1:2)
+
+# Create a data frame of sample information
+# Each row is a sample and each column is a variable
+
+colnames(meth) <- samp_res_csf$BF_id
+row.names(samp_res_csf) <- colnames(meth)
+
+ann_colors = list(
+  `CNA calls` = c(`+`="gray15", `-`="white"),
+  `Path. diagnosis`=c(
+    "BRCA"="#c95f7b","COAD"="#ad6ef1","Negative"="white",
+    "DLBC"="#e98c61","LUAD"="#b890e0","STAD"="#f79246","OV/UCS"="#0581be",
+    "GBM"="#44aeff","GBM/PXA"="#44aeff",
+    "MB"="#68ab97","O IDH"="#ffe336"), 
+  `Deconv. classification`=c("N/a"="white", "Reference"="#E6AB02",
+                             "Misleading profile"="#cc0000",
+                 "Matched"="#18a558", "Indeterminate"="grey70"), #"CNA (-)"="#ff8200"
+  Sex = c("M" = "#1461f0", "F" = "#d30202", "N/a"="white"),
+  #Age = c("white", "#378561")
+  `Cytology` = c("Positive"="#18a558","Atypical/Suspicious"= "grey70",
+                 "Negative"= "#E6AB02", "N/a"="white" ),
+  `Flow cytometry` = c("Positive"="#18a558","Atypical/Suspicious"= "grey70",
+                 "Negative"= "#E6AB02", "N/a"="white" )
+  )
+
+dot_anno <- anno_points(samp_res_csf$TF_XR, pt_size = unit(0.7, "mm"))  
+
+# Define the annotations for columns
+anno <- HeatmapAnnotation(
+  Age=samp_res_csf$Age,
+  Sex=samp_res_csf$Sex,
+  `Cytology`=samp_res_csf$cyto_clean,
+  `Flow cytometry`=samp_res_csf$flow_clean,
+  `CNA calls`=samp_res_csf$CNA_calls,
+  `Tumor fraction`=dot_anno,
+  `Path. diagnosis`=samp_res_csf$Path_diagnosis,
+  #`ML classification`=samp_res_csf$Classification,
+  `Deconv. classification`=samp_res_csf$Deconvolution,
+  #`Composite classification`=samp_res_csf$Composite,
+  gp = gpar(col = "gray40"),
+  col = ann_colors, # Ensure 'ann_colors' is defined correctly to match categories
+  which = "col", # Annotation for columns
+  show_annotation_name = TRUE # Show names of the annotations
+)
+
+aa1 <- Heatmap(as.matrix(meth), # The data matrix
+  name = "Methylation Level", # Title of the heatmap
+  top_annotation = anno, # Add annotations at the top
+  row_title = "Rows", # Title to the side of rows
+  show_column_names = TRUE, # Whether to show column names
+  show_row_names = TRUE, # Whether to show row names
+  border = TRUE,
+  cluster_rows = FALSE, # Disable row clustering
+  cluster_columns = FALSE # Disable column clustering
+)
+aa1
+
+# dev.new()
+# pdf(file=file.path(pathcsf,"Output",
+#     paste0(str_sub(Sys.Date(), start = 3),"-CSFpatients_info_matrix.pdf")),
+#     width = 16, height = 6, useDingbats = FALSE)
+# aa1
+# dev.off()
+
+```
+
+# pheatmap for FFPE
+
+```{r pheatmap_FFPE}
+
+samp_res_tf <- samp_res_final3[samp_res_final3$Sample_tp.3cat=="FFPE",]
+samp_res_tf2 <- samp_res_tf[order(samp_res_tf$purity.abs),]
+
+samp_res_tf2 <- samp_res_tf2 %>% 
+  mutate(TF_50grp_2cat = ifelse(TF_XR<0.5, 1, 2),
+         TF_50grp_2cat.f = factor(as.factor(TF_50grp_2cat), order=T,
+                levels=c(1,2),labels=c("<0.5","0.5+")))
+table(samp_res_tf$Path_diagnosis)
+rm(.Random.seed, envir=globalenv())
+
+set.seed (1259)
+meth <- matrix (rnorm (74), nrow = 2, ncol = 37)
+colnames(meth) <- paste0("Sample_", 1:37)
+rownames (meth) <- paste0 ("Gene_", 1:2)
+
+# Create a data frame of sample information
+# Each row is a sample and each column is a variable
+
+colnames(meth) <- samp_res_tf2$BF_id
+row.names(samp_res_tf2) <- colnames(meth)
+
+ann_colors = list(
+  `CNA calls` = c(`+`="gray15", `-`="white"),
+  `Path. diagnosis`=c(
+    "BRCA"="#c95f7b","DLBC"="#e98c61",
+    "LUAD"="#b890e0","SKCM"="#63632f",
+    # "COAD"="#ad6ef1","Control"="white",
+    # "DLBC"="#e98c61","ESCA"="#7af870","HNSC"="#55c056","KIRC"="#9d5723",
+    # "NSCLC"="#b890e0","LIHC/CHOL"="#fa8fcc","LUSC"="#27780d",
+    # "OV"="#0581be","OV/UCEC"="#f50a41","PAAD"="#734ba9","PNET"="#a37c92",
+     "EPN, RELA"="#973534","GBM"="#44aeff",
+    "MB, G4"="#0581be","MB, SHH INF"="#8bc0ff",
+    "MB, WNT"="#6da7d9","MNG"="#d566d7","O IDH"="#ffe336"), 
+  `Deconv. classification`=c("N/a"="white", "Misleading profile"="#cc0000",
+                 "Matched"="#18a558", "Indeterminate"="grey70"),
+  Sex = c("M" = "#1461f0", "F" = "#d30202", "N/a"="white")
+  )
+
+dot_anno <- anno_points(samp_res_tf2$TF_XR, pt_size = unit(0.75, "mm"))  
+
+# Define the annotations for columns
+anno <- HeatmapAnnotation(
+  Age=samp_res_tf2$Age,
+  Sex=samp_res_tf2$Sex,
+  `CNA calls`=samp_res_tf2$CNA_calls,
+  `Tumor fraction`=dot_anno,
+  `Path. diagnosis`=samp_res_tf2$Path_diagnosis,
+  `Deconv. classification`=samp_res_tf2$Deconvolution,
+  gp = gpar(col = "gray40"),
+  col = ann_colors, # Ensure 'ann_colors' is defined correctly to match categories
+  which = "col", # Annotation for columns
+  show_annotation_name = TRUE # Show names of the annotations
+)
+
+aa2 <- Heatmap(as.matrix(meth), # The data matrix
+  name = "Methylation Level", # Title of the heatmap
+  top_annotation = anno, # Add annotations at the top
+  row_title = "Rows", # Title to the side of rows
+  show_column_names = TRUE, # Whether to show column names
+  show_row_names = TRUE, # Whether to show row names
+  border = TRUE,
+  cluster_rows = FALSE, # Disable row clustering
+  cluster_columns = FALSE # Disable column clustering
+)
+aa2
+
+# pdf(file=file.path(pathcsf,"Output",
+#                    paste0(str_sub(Sys.Date(), start = 3),"-FFPEpatients_info_matrix.pdf")),
+#     width = 8, height = 6, useDingbats = FALSE)
+# aa2
+# dev.off()
+
+```
+# CSF ROC curves
+
+```{r ROC_CSF}
+GetROCvalue <-  function(res_df, class_index){
+
+#adj.class_pred <- ifelse(adj.bi_pred == 1, class_index, "Other")
+obs_lab <- ifelse(res_df$Diag_TCGA==class_index, 1,0)
+
+deconv_pred <- ifelse(res_df$pred_temp==class_index, 1,0)
+
+deconv_mat <- data.frame(obs=obs_lab, pred=deconv_pred, Sentrix_ID=res_df$Sentrix_ID)
+
+luad_deconv <- pROC::roc(response = deconv_mat$obs, predictor = deconv_mat$pred, ci=TRUE)
+
+return(luad_deconv)
+
+}
+
+table(samp_res_csf$CNA_calls)
+table(samp_res_csf$pred_deconv)
+
+res_csf_novuage <- samp_res_csf[samp_res_csf$Deconvolution !="Indeterminate" 
+                                & samp_res_csf$TCGA_Project!="Control",]
+table(res_csf_novuage$Diag_TCGA)
+#54 cases
+luad_roc <- GetROCvalue(res_df=res_csf_novuage, class_index="LUAD")
+brca_roc <- GetROCvalue(res_df=res_csf_novuage, class_index="BRCA")
+lympho_roc <- GetROCvalue(res_df=res_csf_novuage, class_index="DLBC")
+
+# #make graph
+# pdf(file=file.path(path_csf,"Output",
+#                    paste0(str_sub(Sys.Date(), start = 3),"-luad.dlbc.brca-ROC.pdf")),
+#     width = 10.2, height = 3.5, useDingbats = FALSE)
+# 
+# par(mfrow=c(1,3), mar=c(0.07,0.07,1,1)) # 1 row and 3 columns
+
+plot(luad_roc, 
+     xlab = "Specificity", ylab = "Sensitivity", 
+     col="#b890e0", lty=1,  print.auc = TRUE, 
+     print.auc.x = 0.5, print.auc.y = 0.3)
+text(x = 0.5, y = 1.1, col="black", labels = "LUAD", xpd = NA)
+
+plot(lympho_roc, 
+     col="#e98c61", lty=1,  print.auc = TRUE, 
+     print.auc.x = 0.5, print.auc.y = 0.3)
+text(x = 0.5, y = 1.1, col="black", labels = "DLBC", xpd = NA)
+
+plot(brca_roc,
+     col="#c95f7b", lty=1,  print.auc = TRUE,
+     print.auc.x = 0.5, print.auc.y = 0.3)
+text(x = 0.5, y = 1.1, col="black", labels = "BRCA", xpd = NA)
+
+#dev.off()
+```
+# Check statistics
+
+```{r}
+samp_56csf <- samp_res_final3[samp_res_final3$Sample_type=="CSF" 
+                               & samp_res_final3$ca_co!="Control",]
+table(samp_56csf$Deconvolution)
+table(samp_56csf$Composite)
+table(samp_56csf$Path_diagnosis,samp_56csf$Deconvolution)
+
+samp_purity <- samp_56csf[samp_56csf$CNA_calls=="+",]
+median(samp_purity$purity.abs)
+quantile(samp_purity$purity.abs)
+
+
+samp_53csf <- samp_res_final3[samp_res_final3$Sample_type=="CSF" 
+                               & samp_res_final3$ca_co!="Control"
+                              & samp_res_final3$Composite!="Indeterminate",]
+
+table(samp_53csf$Composite)
+
+#non-CSF samples
+samp_othr <- samp_res_final3[samp_res_final3$Sample_type !="CSF" & samp_res_final3$purity.abs>=0.5,]
+
+
+```
+
+# Tumor fraction vs. others
+
+```{r TFvs.zscore_sep}
+samp_res_csf.ca2 <- samp_res_final3[samp_res_final3$Sample_type=="CSF"
+                                 #& samp_res_final3$pred_comb!="Indeterminate"
+                                  & samp_res_final3$CNA_calls=="+",] #53
+#======================
+#Calibrated score
+
+samp_res_csf.ca2_tf <- 
+  samp_res_final3[samp_res_final3$Sample_type=="CSF" 
+                  & samp_res_final3$Diag_TCGA!="Control"
+                  & samp_res_final3$CNA_calls=="+",]
+
+describe(samp_res_csf.ca2_tf$TF_XR)
+
+#=================
+#z score vs. TF
+#samp_res_csf.ca2[!is.na(samp_res_csf.ca2$deconv_prop),]
+res_ca2 <- samp_res_csf.ca2[samp_res_csf.ca2$Deconvolution!="Indeterminate",] %>%
+  mutate(TF_50grp = ifelse(TF_XR<0.5, 1,2),
+         TF_50grp = ifelse(BF_id=="BF3792", 2, TF_50grp),
+         TF_XR = ifelse(BF_id=="BF3792", 0.5, TF_XR),
+         TF_50grp.f = factor(as.factor(TF_50grp), order=T,
+                levels=c(1,2),labels=c("<50%","50%+")))
+#remove 4 samples with wrong deconv results
+#aes(label = paste(after_stat(eq.label), ..rr.label.., sep = "~~~")),
+pz <- ggplot(res_ca2, aes(x=TF_XR, y=top1_zscore, color=TF_50grp.f)) +
+  geom_point() + 
+  geom_smooth(method=lm,na.rm = TRUE) +
+  stat_poly_eq(use_label(c("eq", "R2","P")),
+               label.x = "right",
+               formula = y ~ x, 
+               parse = TRUE) +
+  scale_color_manual(values=c("#6497b1","#005b96")) +
+  geom_vline(xintercept = 0.5, linetype="dotted", color = "gray80", linewidth=1) +
+  geom_hline(yintercept = 2, linetype="dashed", color = "gray20", linewidth=1) +
+  geom_hline(yintercept = 3, linetype="dashed", color = "gray70", linewidth=1) +
+  labs(x = "Tumor purity", y = "Z score") +
+  scale_x_continuous(breaks=seq(0, 1, by = 0.2),
+                     labels=seq(0, 1, by = 0.2), limits=c(-0.005,1), expand = c(0, 0)) + 
+  scale_y_continuous(breaks=seq(0, 40, by = 10),
+                     labels=seq(0, 40, by = 10), limits=c(-0.01,40), expand = c(0, 0)) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=14, face="bold"),
+        axis.text.x = element_text(size=14,face="bold"),
+        axis.text.y = element_text(size=14, face="bold"),
+        axis.title=element_text(size=14,face="bold"),
+        legend.position="none",
+        legend.title=element_blank()) 
+pz
+
+fit = lm(top1_zscore ~ TF_XR, data=res_ca2[res_ca2$TF_50grp==1,])
+stat1 <- glance(fit)
+# r.squared adj.r.squared  sigma  statistic  p.value  df  logLik  AIC  BIC
+# 0.3156344	0.2871191	9.580306	11.06897	0.00281961	1	-94.60429	195.2086	198.9829
+
+fit = lm(top1_zscore ~ TF_XR, data=res_ca2[res_ca2$TF_50grp==2,])
+stat2 <- glance(fit)
+stat2
+# r.squared adj.r.squared  sigma  statistic  p.value  df  logLik  AIC  BIC
+# 0.05051768	0.01253839	6.968936	1.330137	0.2596886	1	-89.69186	185.3837	189.2712
+
+###################
+
+pz2 <- ggplot(res_ca2, aes(x=TF_XR, y=top1_zscore)) +
+  geom_point(color="#005b96") + 
+  geom_smooth(method=lm,na.rm = TRUE,color="#005b96") +
+  stat_poly_eq(use_label(c("eq", "R2","P")),
+               label.x = "right",
+               formula = y ~ x,
+               parse = TRUE) +
+  geom_vline(xintercept = 0.5, linetype="dotted", color = "gray80", linewidth=1) +
+  geom_hline(yintercept = 2, linetype="dashed", color = "gray20", linewidth=1) +
+  geom_hline(yintercept = 3, linetype="dashed", color = "gray70", linewidth=1) +
+  labs(x = "Tumor purity", y = "Z score") +
+  scale_x_continuous(breaks=seq(0, 1, by = 0.2),
+                     labels=seq(0, 1, by = 0.2), limits=c(-0.005,1), expand = c(0, 0)) + 
+  scale_y_continuous(breaks=seq(0, 40, by = 10),
+                     labels=seq(0, 40, by = 10), limits=c(-0.01,40), expand = c(0, 0)) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.border = element_rect(linewidth=1.1,color="black",fill=NA),
+        text=element_text(size=14, face="bold"),
+        axis.text.x = element_text(size=14,face="bold"),
+        axis.text.y = element_text(size=14, face="bold"),
+        axis.title=element_text(size=14,face="bold"),
+        legend.position="none",
+        legend.title=element_blank()) 
+pz2
+
+fit = lm(top1_zscore ~ TF_XR, data=res_ca2)
+stat_all <- broom::glance(fit)
+print(stat_all)
+# r.squared adj.r.squared  sigma  statistic  p.value  df  logLik  AIC  BIC
+#rm CNA-
+#0.1735973	0.1573933	8.820291	10.71325	0.001913231	1	-189.5683	385.1366	391.0475
+#rm CNA- and indeterminate
+#0.1508546	0.1335251	8.682235	8.705074	0.004855497	1	-181.571	369.1419	374.9374
+
+# dev.new()
+# pdf(file=file.path(pathcsf,"Output",
+#                    paste0(str_sub(Sys.Date(), start = 3),
+#                    "-CSF_tumorfracVS.zscore.pdf")),
+#     width = 3.5, height = 2.5, useDingbats = FALSE)
+# pz2
+# dev.off()
+
+res_ca2_2can <- res_ca2[res_ca2$TCGA_Project %in% c("LUAD","DLBC"),] 
+res_ca2_2can$grp.f <- factor(as.factor(res_ca2_2can$TCGA_Project), order=T,
+         levels=c("LUAD","DLBC"),
+         labels=c("LUAD","DLBC"))
+describe(res_ca2[res_ca2$TCGA_Project =="LUAD",]$TF_XR)
+#luad,  0.4833(0.3167,0.6022)
+   
+describe(res_ca2[res_ca2$TCGA_Project =="DLBC",]$TF_XR)
+#DLBC0.5785(0.3803,0.7220)
+pz_can <- ggplot(res_ca2_2can, aes(x=TF_XR, y=top1_zscore, color=grp.f)) +
+  geom_point() + 
+  scale_color_manual(values=c("#b890e0","#e98c61")) +
+  #geom_smooth(method=lm,na.rm = TRUE,color="#005b96") +
+  # stat_poly_eq(use_label(c("eq", "R2","P")),
+  #              label.x = "right",
+  #              formula = y ~ x,
+  #              parse = TRUE) +
+  #geom_vline(xintercept = 0.5, linetype="dotted", color = "gray80", linewidth=1) +
+  geom_hline(yintercept = 2, linetype="dashed", color = "gray20", linewidth=1) +
+  geom_hline(yintercept = 3, linetype="dashed", color = "gray70", linewidth=1) +
+  labs(x = "Tumor purity", y = "Z score") +
+  facet_wrap(~ grp.f, ncol=2) +
+  scale_x_continuous(breaks=seq(0, 1, by = 0.2),
+                     labels=seq(0, 1, by = 0.2), limits=c(-0.005,1), expand = c(0, 0)) + 
+  scale_y_continuous(breaks=seq(0, 50, by = 25),
+                     labels=seq(0, 50, by = 25), limits=c(-0.01,50), expand = c(0, 0)) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.border = element_rect(linewidth=1.1,color="black",fill=NA),
+        text=element_text(size=14, face="bold"),
+        axis.text.x = element_text(size=14,face="bold"),
+        axis.text.y = element_text(size=14, face="bold"),
+        axis.title=element_text(size=14,face="bold"),
+        legend.position="none",
+        legend.title=element_blank()) 
+pz_can
+
+# dev.new()
+# pdf(file=file.path(pathcsf,"Output",
+#                    paste0(str_sub(Sys.Date(), start = 3),
+#                    "-CSF_tumorfracVS.zscore_2cancers.pdf")),
+#     width = 7, height = 3.5, useDingbats = FALSE)
+# pz_can
+# dev.off()
+```
+
+# Confusion matrix
+
+```{r Confusion matrix}
+
+samp_res_final3$pred_temp <- ifelse(samp_res_final3$Deconvolution=="Indeterminate",
+                                    "N/a",samp_res_final3$pred_temp)
+samp_res_csf.fil <- samp_res_final3[samp_res_final3$Sample_tp.3cat=="CSF"
+                                & samp_res_final3$pred_temp != "N/a",]
+
+table(samp_res_csf.fil$Diag_TCGA)
+samp_res_csf.fil <- samp_res_csf.fil %>% 
+  mutate(pred_temp = ifelse(pred_temp=="OV","OV/UCS",
+          (ifelse(pred_temp=="Control","Negative",pred_temp))),
+         Diag_TCGA = ifelse(Diag_TCGA=="OV","OV/UCS",
+          (ifelse(Diag_TCGA=="Control","Negative",
+                  (ifelse(Diag_TCGA %in% c("MCF GBM","MCF IDH GLM", "MCF MB G3G4"),
+                  "Brain",Diag_TCGA))))))
+
+table(samp_res_csf.fil$pred_temp)
+#c("MCF GBM", "MCF IDH GLM", "MCF MB G3G4", "MCF MB SHH", Brain)
+
+conf_matrix <- table(True=samp_res_csf.fil$Diag_TCGA, Predicted = samp_res_csf.fil$pred_temp)
+con_df <- as.data.frame(conf_matrix)
+colnames(con_df)
+
+lab_true <- names(table(con_df$True))
+lab_true
+lab_pred <- names(table(con_df$Predicted))
+lab_pred
+
+a1 <- data.frame(True=rep("Kidney",times=length(lab_pred)+1), 
+                 Predicted=c(lab_pred,"STAD"),
+                 Freq=rep(0,times=length(lab_pred)+1))
+a2 <- data.frame(True=c(lab_pred,"STAD"),
+                 Predicted=rep("STAD",times=length(lab_pred)+1),
+                 Freq=rep(0,times=length(lab_pred)+1))
+
+con_df_m <- rbind(con_df,a1,a2)
+con_df_m <- unique(con_df_m)
+
+con_df_m2 <- con_df_m %>%
+  mutate(True_char=as.character(True),
+         Pred_char=as.character(Predicted),
+         Pred_f=factor(as.factor(Pred_char),order=T,
+                       levels=c("Negative","BRCA","COAD","DLBC","Kidney","LUAD",
+                                "STAD","OV/UCS","Brain"),
+                       labels=c("Negative","BRCA","COAD","DLBC","Kidney tumor","LUAD",
+                                "STAD","OV/UCS","Brain tumor")),
+         True_f=factor(as.factor(True_char),order=T,
+                       levels=c("Brain","OV/UCS","STAD","LUAD",
+                                "Kidney","DLBC","COAD","BRCA","Negative"),
+                       labels=c("Brain tumor","OV/UCS","STAD","LUAD",
+                                "Kidney tumor","DLBC","COAD","BRCA","Negative")),
+         col_grp=ifelse(True_char==Pred_char,1,ifelse(True_char!=Pred_char & Freq!=0, 2,0)),
+         col_grp_f=factor(as.factor(col_grp),
+                          levels=c(1,2,0),
+                          labels=c("Correct classification","Misclassified","No cases")))
+
+
+#plot
+pmat <- ggplot(con_df_m2, aes(x = Pred_f, y = True_f, fill = col_grp_f)) +
+  geom_tile(color = "black",size=0.7) +
+  labs(x = "Composite classification", y = "Path. diagnosis", title = NULL) +
+  geom_text(aes(label = Freq), vjust = 1, color="black") +
+  #scale_fill_gradient(low = "white", high = "blue") +
+  scale_fill_manual(values = c("#2979FF","#cc0000",'transparent')) + #"#0202d390"
+  theme_minimal() +
+  scale_x_discrete(position = "top") +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        #panel.border = element_rect(linewidth=1.1,color="black",fill=NA),
+        axis.text.x = element_text(size=12, face="bold",angle=90),
+        axis.text.y = element_text(size=12, face="bold"),
+        axis.title.x = element_text(face="bold", size = 13),
+        axis.title.y = element_text(face="bold", size = 13),
+        legend.position = "none")
+
+pmat
+# dev.new()
+# pdf(file=file.path(pathcsf,"Output",
+#                    paste0(str_sub(Sys.Date(), start = 3),
+#                           "-confusionMatrix_CSF_classify.deconv.pdf")),
+#     width = 5, height = 5, useDingbats = FALSE)
+# pmat
+# dev.off()
+
+#####################
+#calculate accuracy
+
+all_levels <-
+  union(levels(factor(samp_res_csf.fil$Diag_TCGA)), levels(factor(samp_res_csf.fil$pred_temp)))
+
+diff_in_obs <- setdiff(all_levels, levels(factor(samp_res_csf.fil$Diag_TCGA)))
+diff_in_pred <- setdiff(all_levels, levels(factor(samp_res_csf.fil$pred_temp)))
+
+# Combine the different elements
+all_diff <- union(diff_in_obs, diff_in_pred)
+num_diff <- length(all_diff)
+
+#fill in rows first
+add_matrix1 <- matrix (0, nrow = length(diff_in_obs), ncol = length(colnames(conf_matrix)))
+if(all(!is.na(diff_in_obs))) {
+rownames(add_matrix1) <- diff_in_obs
+colnames(add_matrix1) <- colnames(conf_matrix)
+conf_m1 <- rbind(conf_matrix,add_matrix1)}
+
+#fill in cols later
+add_matrix2 <- matrix (0, nrow = length(all_levels), ncol = length(diff_in_pred))
+if(all(!is.na(diff_in_pred))) {
+colnames(add_matrix2) <- diff_in_pred
+rownames(add_matrix2) <- rownames(conf_m1)
+conf_m2 <- cbind(conf_m1, add_matrix2)}
+#sort
+conf_m3 <- conf_m2[rownames(conf_m2), rownames(conf_m2)]
+
+blk <- data.frame()
+for (i in 1:length(all_levels)){
+class=all_levels[i]
+T_n1 <- as.numeric(names(table(conf_m3[class, class])))
+total_n1 <- unname(table(samp_res_csf.fil$Diag_TCGA)[class])
+pred_n1 <- colSums(conf_m3)[[i]]
+stat_df <- data.frame(can_grp=all_levels[i],TP_n=T_n1, total_n=total_n1,
+                      pred_n=pred_n1,FP_n=pred_n1-T_n1)
+
+blk<- rbind(blk, stat_df)
+}
+
+blk[is.na(blk)]=0
+blk$FN_n=blk$total_n-blk$TP_n
+blk$accuracy1=blk$TP_n/blk$total_n
+
+ppv=sum(blk$TP_n)/sum(blk$pred_n)
+accuracy=sum(blk$TP_n)/sum(blk$total_n) #0.97
+used_case=nrow(samp_res_csf.fil)
+
+```
+
+# FFPE ROC curves
+
+```{r ROC_FFPE}
+
+GetROCvalue <-  function(res_df, class_index){
+
+#adj.class_pred <- ifelse(adj.bi_pred == 1, class_index, "Other")
+obs_lab <- ifelse(res_df$Diag_TCGA==class_index, 1,0)
+
+deconv_pred <- ifelse(res_df$pred_deconv==class_index, 1,0)
+
+deconv_mat <- data.frame(obs=obs_lab, pred=deconv_pred, Sentrix_ID=res_df$Sentrix_ID)
+
+luad_deconv <- pROC::roc(response = deconv_mat$obs, predictor = deconv_mat$pred, ci=TRUE)
+
+return(luad_deconv)
+
+}
+table(samp_res_csf$CNA_calls)
+table(samp_res_csf$pred_deconv)
+
+samp_res_tf <- samp_res_final3[samp_res_final3$Sample_tp.3cat=="FFPE",]
+
+samp_res_tf.fil <- samp_res_tf[samp_res_tf$Deconvolution !="Indeterminate" ,] %>% 
+  mutate(pred_temp = ifelse(pred_temp=="OV","OV/UCS",
+          (ifelse(pred_temp=="Control","Negative",pred_temp))),
+         Diag_TCGA = ifelse(Diag_TCGA=="OV","OV/UCS",
+          (ifelse(Diag_TCGA=="Control","Negative",
+                  (ifelse(Diag_TCGA %in% c("MCF GBM","MCF IDH GLM", "MCF MB G3G4"),
+                  "Brain",Diag_TCGA))))),
+         pred_deconv=pred_temp)
+
+#35 cases
+luad_roc <- GetROCvalue(res_df=samp_res_tf.fil, class_index="LUAD")
+brain_roc <- GetROCvalue(res_df=samp_res_tf.fil, class_index="Brain")
+lympho_roc <- GetROCvalue(res_df=samp_res_tf.fil, class_index="DLBC")
+
+# #make graph
+# pdf(file=file.path(pathcsf,"Output",
+#                    paste0(str_sub(Sys.Date(), start = 3),"-FFPE_luad.dlbc.brain_ROC.pdf")),
+#     width = 10.2, height = 3.5, useDingbats = FALSE)
+# 
+# par(mfrow=c(1,3), mar=c(0.07,0.07,1,1)) # 1 row and 3 columns
+
+
+plot(luad_roc, 
+     xlab = "Specificity", ylab = "Sensitivity", 
+     col="#b890e0", lty=1,  print.auc = TRUE, 
+     print.auc.x = 0.5, print.auc.y = 0.3)
+text(x = 0.5, y = 1.1, col="black", labels = "LUAD", xpd = NA)
+
+plot(lympho_roc, 
+     col="#e98c61", lty=1,  print.auc = TRUE, 
+     print.auc.x = 0.5, print.auc.y = 0.3)
+text(x = 0.5, y = 1.1, col="black", labels = "DLBC", xpd = NA)
+
+#dev.off()
+```
+
+# Tumor fraction vs. others
+
+```{r TFvs.zscore_oneline}
+samp_res_tf <- samp_res_final3[samp_res_final3$Sample_tp.3cat=="FFPE",]
+samp_res_tf2 <- samp_res_tf[samp_res_tf$Deconvolution !="Indeterminate"
+                            & samp_res_tf$BF_id!="TF642",]
+pz_tf <- ggplot(samp_res_tf2, aes(x=TF_XR, y=top1_zscore)) +
+  geom_point(color="#005b96") + 
+  geom_smooth(method=lm,na.rm = TRUE,color="#005b96") +
+  stat_poly_eq(use_label(c("eq", "R2","P")),
+               label.x = "right",
+               formula = y ~ x,
+               parse = TRUE) +
+  geom_vline(xintercept = 0.5, linetype="dotted", color = "gray80", linewidth=1) +
+  geom_hline(yintercept = 2, linetype="dashed", color = "gray20", linewidth=1) +
+  geom_hline(yintercept = 3, linetype="dashed", color = "gray70", linewidth=1) +
+  labs(x = "Tumor purity", y = "Z score") +
+  scale_x_continuous(breaks=seq(0, 1, by = 0.2),
+                     labels=seq(0, 1, by = 0.2), limits=c(-0.005,1), expand = c(0, 0)) + 
+  scale_y_continuous(breaks=seq(0, 50, by = 10),
+                     labels=seq(0, 50, by = 10), limits=c(-0.01,52), expand = c(0, 0)) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        panel.grid.major.y = element_blank(),
+        panel.border = element_rect(linewidth=1.1,color="black",fill=NA),
+        text=element_text(size=14, face="bold"),
+        axis.text.x = element_text(size=14,face="bold"),
+        axis.text.y = element_text(size=14, face="bold"),
+        axis.title=element_text(size=14,face="bold"),
+        legend.position="none",
+        legend.title=element_blank()) 
+pz_tf
+
+fit = lm(top1_zscore ~ TF_XR, data=samp_res_tf2)
+stat_all <- broom::glance(fit)
+print(stat_all)
+# r.squared adj.r.squared  sigma  statistic  p.value  df  logLik  AIC  BIC
+#0.01246295	-0.01839758	12.50156	0.4038476	0.5296275	1	-133.0923	272.1846	276.7637
+
+# dev.new()
+# pdf(file=file.path(pathcsf,"Output",
+#                    paste0(str_sub(Sys.Date(), start = 3),
+#                    "-FFPE_tumorfracVS.zscore.pdf")),
+#     width = 3.5, height = 2.6, useDingbats = FALSE)
+# pz_tf
+# dev.off()
+```
+
+#other sample distribution
+
+```{r barchart_samples}
+#FFPE
+samp_ffpe <- samp_res_final3[samp_res_final3$Sample_tp.3cat=="FFPE",]
+
+samp_ffpe1 <- samp_ffpe %>% 
+mutate(diag_grp = 
+  ifelse(TCGA_Project %in% 
+           c("EPN, RELA","MB, WNT","MCF GBM","MCF IDH GLM","MCF MB G3G4",  
+             "MCF MB SHH","MNG"), "Brain", TCGA_Project),
+  organ = sapply(str_split(Sample_type, " - ",  n = 2), `[`, 2))
+
+
+stat_ffpe <- as.data.frame(table(samp_ffpe1$organ))
+print(stat_ffpe$Var1)
+table(samp_ffpe1$organ)
+#tissue source?
+
+samp_ffpe2 <- merge(samp_ffpe1,stat_ffpe,by.x="organ",by.y="Var1",all.x=T)
+
+hist_ffpe <- ggplot(data=samp_ffpe2, aes(x=organ)) +
+  geom_bar()+
+  labs(y="Count",x=NULL,title="FFPE")+
+  scale_y_continuous(breaks=seq(0, 25, by = 5),
+                     labels=seq(0, 25, by = 5), limits=c(0,26), expand=c(0,0)) + 
+   theme(panel.background = element_blank(),
+        #panel.grid.major = element_blank(),
+        panel.grid.major.y = element_line(color = "grey80",
+                                          size = 0.5,
+                                          linetype = 1),
+        panel.border = element_rect(color="black",fill=NA),
+        #text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15,face="bold",angle=30,hjust=1),
+        axis.text.y = element_text(size=15, face="bold"),
+        axis.title=element_text(size=15,face="bold"),
+        legend.position="none",
+        legend.title=element_blank(),
+        plot.title = element_text(hjust = 0.5,size=15,face="bold"))
+
+hist_ffpe
+
+```
+
+

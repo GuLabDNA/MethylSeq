@@ -1,0 +1,1554 @@
+---
+title: "Samples_coverage"
+author: "Jingru Yu"
+date: '2024-06-08'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+#rm(list=ls())
+
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(stringr)
+library(openxlsx)
+library(data.table) #detDT
+library(scales)
+library("writexl") 
+#install.packages("ggExtra")
+library(ggExtra)
+library(ggpubr) #ggarrange
+
+### function cbind.fill, combine cols with different lengths
+cbind.fill<-function(...){
+    nm <- list(...) 
+    nm<-lapply(nm, as.matrix)
+    n <- max(sapply(nm, nrow)) 
+    do.call(cbind, lapply(nm, function (x) 
+    rbind(x, matrix(, n-nrow(x), ncol(x))))) 
+}
+
+#Trim
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+#create folder
+createFolder <- function(pathtemp,nameFolder){
+folder <- paste0(pathtemp, "/", nameFolder)
+
+if (file.exists(folder)) {
+ cat("The folder already exists")
+} else {dir.create(folder)}
+}
+
+pathdvdf <- "D:/Jingru/deconv/Data"
+pathmeth <- "D:/Jingru/methylation"
+pathref <- "D:/Jingru/references"
+pathct.d <- "D:/Jingru/deconv/v2hg38Markers"
+pathK562 <- "D:/Jingru/references/RefData/K562_XR2021"
+pathdil <- "D:/Jingru/deconv/Data/XR21_titration"
+
+#get all CpGs
+allCpG <- as.data.frame(fread(
+  file.path("W:/User/Jingru/Data/allCpG_hg38_only_chr_sorted.bed"),
+  header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="")) 
+colnames(allCpG) <- c("chr","start","end")
+allCpG <- allCpG %>% mutate(startCpG = 1:nrow(allCpG))
+head(allCpG)
+
+```
+
+# GetFreqPlot function
+
+```{r GetFreqPlot}
+
+GetFreqPlot<- function(samp_df, samp_name, inter){ 
+  
+samp_df <- within(samp_df, {
+  cntcat <- NA
+  cntcat[is.na(depth)] <- "No coverage"
+  cntcat[depth >=1 & depth <=4] <- "1-4"
+  cntcat[depth >=5 & depth <=9] <- "5-9"
+  cntcat[depth >=10 & depth <=14] <- "10-14"
+  cntcat[depth >=15 & depth <=19] <- "15-19"
+  cntcat[depth >=20 & depth <=24] <- "20-24"
+  cntcat[depth >=25 & depth <=29] <- "25-29"
+  cntcat[depth >=30 & depth <=34] <- "30-34"
+  cntcat[depth >=35 & depth <=39] <- "35-39"
+  cntcat[depth >=40 & depth <=44] <- "40-44"
+  cntcat[depth >=45 & depth <=49] <- "45-49"
+  cntcat[depth >=50 & !is.na(depth)] <- "50+"
+  
+  cntcat_accum1 <- NA
+  cntcat_accum1[depth >=1] <- 0
+
+  cntcat_accum5 <- NA
+  cntcat_accum5[depth >=1 & depth < 5] <- 0
+  cntcat_accum5[depth >=5] <- 1
+  
+  cntcat_accum10 <- NA
+  cntcat_accum10[depth >=1 & depth < 10] <- 0
+  cntcat_accum10[depth >=10] <- 1
+  
+  cntcat_accum15 <- NA
+  cntcat_accum15[depth >=1 & depth < 15] <- 0
+  cntcat_accum15[depth >=15] <- 1
+  
+  cntcat_accum20 <- NA
+  cntcat_accum20[depth >=1 & depth < 20] <- 0
+  cntcat_accum20[depth >=20] <- 1
+  
+  cntcat_accum30 <- NA
+  cntcat_accum30[depth >=1 & depth < 30] <- 0
+  cntcat_accum30[depth >=30] <- 1
+  
+  cntcat_accum40 <- NA
+  cntcat_accum40[depth >=1 & depth < 40] <- 0
+  cntcat_accum40[depth >=40] <- 1
+  
+  cntcat_accum50 <- NA
+  cntcat_accum50[depth >=1 & depth < 50] <- 0
+  cntcat_accum50[depth >=50] <- 1
+  
+  
+})
+
+cov1 <- t(as.data.frame(table(samp_df$cntcat_accum1)))
+rownames(cov1)[2] <- "cov1"
+
+cov5 <- t(as.data.frame(table(samp_df$cntcat_accum5)))
+rownames(cov5)[2] <- "cov5"
+
+cov10 <- t(as.data.frame(table(samp_df$cntcat_accum10)))
+rownames(cov10)[2] <- "cov10"
+
+cov15 <- t(as.data.frame(table(samp_df$cntcat_accum15)))
+rownames(cov15)[2] <- "cov15"
+
+cov20 <- t(as.data.frame(table(samp_df$cntcat_accum20)))
+rownames(cov20)[2] <- "cov20"
+
+cov30 <- t(as.data.frame(table(samp_df$cntcat_accum30)))
+rownames(cov30)[2] <- "cov30"
+
+cov40 <- t(as.data.frame(table(samp_df$cntcat_accum40)))
+rownames(cov40)[2] <- "cov40"
+
+cov50 <- t(as.data.frame(table(samp_df$cntcat_accum50)))
+rownames(cov50)[2] <- "cov50"
+
+cov_df2 <- rbind(cov5,cov10,cov15,cov20,cov30,cov40,cov50)
+cov_df2 <- cov_df2[c(2,4,6,8,10,12,14),]
+#13.6;7.6;5.9;2.9
+
+samp_df_cov <- as.data.frame(table(samp_df$cntcat))
+colnames(samp_df_cov)[1] <-"cntcat"
+
+samp_df_cov <- within(samp_df_cov, {
+cnt <- NA
+  cnt[cntcat =="1-4"] <- 1
+  cnt[cntcat =="5-9"] <- 2
+  cnt[cntcat =="10-14"] <- 3 
+  cnt[cntcat =="15-19"] <- 4
+  cnt[cntcat =="20-24"] <- 5
+  cnt[cntcat =="25-29"] <- 6
+  cnt[cntcat =="30-34"] <- 7
+  cnt[cntcat =="35-39"] <- 8
+  cnt[cntcat =="40-44"] <- 9
+  cnt[cntcat == "45-49"] <- 10
+  cnt[cntcat == "50+"] <- 11
+
+  Freq_1m <- round(Freq/1000000,digits=2)
+  Freq_perc <- round(Freq/sum(Freq)*100, digits=2)
+})  
+
+samp_df_cov <- samp_df_cov[order(samp_df_cov$cnt),]
+
+spline_df <- as.data.frame(spline(samp_df_cov$cnt, samp_df_cov$Freq_1m))
+#how to deal with negative simulated values? set 0
+#min_val <- min((subset(spline_df, y>0))$y)
+#spline_df$y[spline_df$y < 0] <- min_val
+spline_df$y[spline_df$y < 0] <- 0
+            
+p_line1 <- ggplot(data=samp_df_cov, aes(x = cnt, y = Freq_1m)) +
+  #geom_path(alpha = 0.5) +
+  #geom_line(data = spline_df, aes(x = x, y = y))+
+  #geom_smooth(method='loess')+ 
+  geom_line()+
+  geom_point()+
+  scale_x_continuous(breaks=seq(1,21, by = 1),
+                     labels=c(0,seq(5, 100, by = 5))) +
+  scale_y_continuous(breaks=seq(0,10, by = 2),
+                     labels=seq(0,10, by = 2),
+                     limits=c(0,10), expand = c(0, 0)) +
+  labs(x = "Coverage", y = "Frequency of CpGs (million)") +
+   # Add vertical line & label
+  geom_vline(xintercept = c(2,3,4,7), color="grey50",
+             linetype="dashed", linewidth=0.5) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=13, face="bold")
+)
+
+pdf(file.path(pathref,"Output/coverage",paste0("CpGCov_Freq_",samp_name,inter,".pdf")), 
+    width = 5.5, height = 4, useDingbats = FALSE)
+print(p_line1)
+p_line1
+dev.off()
+
+cov_ls <- list(samp_df_cov,cov_df2)
+write.csv(samp_df_cov,file.path(pathref,"Output/coverage",
+                                paste0("CpGCov_Freq_",samp_name,inter,".csv")) )
+write.csv(cov_df2,file.path(pathref,"Output/coverage",
+                            paste0("CpGCov_Freq.points_",samp_name,inter,".csv")) )
+return(cov_ls)
+}
+
+#samp_df=k562.1ng_1; samp_name="K562.1ng_comb"
+GetFreqData <- function(samp_df, samp_name){ 
+  
+samp_df <- within(samp_df, {
+  cntcat <- NA
+  cntcat[is.na(depth)] <- "No coverage"
+  cntcat[depth >=1 & depth <=4] <- "1-4"
+  cntcat[depth >=5 & depth <=9] <- "5-9"
+  cntcat[depth >=10 & depth <=14] <- "10-14"
+  cntcat[depth >=15 & depth <=19] <- "15-19"
+  cntcat[depth >=20 & depth <=24] <- "20-24"
+  cntcat[depth >=25 & depth <=29] <- "25-29"
+  cntcat[depth >=30 & depth <=34] <- "30-34"
+  cntcat[depth >=35 & depth <=39] <- "35-39"
+  cntcat[depth >=40 & depth <=44] <- "40-44"
+  cntcat[depth >=45 & depth <=49] <- "45-49"
+  cntcat[depth >=50 & !is.na(depth)] <- "50+"
+  
+  cntcat_accum1 <- NA
+  cntcat_accum1[depth >=1] <- 1
+
+  cntcat_accum5 <- NA
+  cntcat_accum5[depth >=1 & depth < 5] <- 0
+  cntcat_accum5[depth >=5] <- 1
+  
+  cntcat_accum10 <- NA
+  cntcat_accum10[depth >=1 & depth < 10] <- 0
+  cntcat_accum10[depth >=10] <- 1
+  
+  cntcat_accum15 <- NA
+  cntcat_accum15[depth >=1 & depth < 15] <- 0
+  cntcat_accum15[depth >=15] <- 1
+  
+  cntcat_accum20 <- NA
+  cntcat_accum20[depth >=1 & depth < 20] <- 0
+  cntcat_accum20[depth >=20] <- 1
+  
+  cntcat_accum30 <- NA
+  cntcat_accum30[depth >=1 & depth < 30] <- 0
+  cntcat_accum30[depth >=30] <- 1
+  
+  cntcat_accum40 <- NA
+  cntcat_accum40[depth >=1 & depth < 40] <- 0
+  cntcat_accum40[depth >=40] <- 1
+  
+  cntcat_accum50 <- NA
+  cntcat_accum50[depth >=1 & depth < 50] <- 0
+  cntcat_accum50[depth >=50] <- 1
+})
+
+cov1 <- t(as.data.frame(table(samp_df$cntcat_accum1)))
+rownames(cov1)[2] <- "cov1"
+cov1 <- cbind(cov1, c(0,0))
+colnames(cov1) <- c("V2","V1")
+cov1 <- cov1[,c(2,1)]
+
+cov5 <- t(as.data.frame(table(samp_df$cntcat_accum5)))
+rownames(cov5)[2] <- "cov5"
+
+cov10 <- t(as.data.frame(table(samp_df$cntcat_accum10)))
+rownames(cov10)[2] <- "cov10"
+
+cov15 <- t(as.data.frame(table(samp_df$cntcat_accum15)))
+rownames(cov15)[2] <- "cov15"
+
+cov20 <- t(as.data.frame(table(samp_df$cntcat_accum20)))
+rownames(cov20)[2] <- "cov20"
+
+cov30 <- t(as.data.frame(table(samp_df$cntcat_accum30)))
+rownames(cov30)[2] <- "cov30"
+
+cov40 <- t(as.data.frame(table(samp_df$cntcat_accum40)))
+rownames(cov40)[2] <- "cov40"
+
+cov50 <- t(as.data.frame(table(samp_df$cntcat_accum50)))
+rownames(cov50)[2] <- "cov50"
+
+cov_df2 <- rbind(cov1,cov5,cov10,cov15,cov20,cov30,cov40,cov50)
+cov_df2 <- cov_df2[c(2,4,6,8,10,12,14,16),]
+#13.6;7.6;5.9;2.9
+
+cov_df2 <- within(as.data.frame(cov_df2),{
+  lt_cov <- as.numeric(V1)
+  gt_cov <- as.numeric(V2)
+  cnt_perc <- round(as.numeric(V2)/nrow(samp_df)*100,digits=2)
+  cnt_1m <- round(as.numeric(V2)/1000000, digits=2)
+})
+
+samp_df_cov <- as.data.frame(table(samp_df$cntcat))
+colnames(samp_df_cov)[1] <-"cntcat"
+
+samp_df_cov <- within(samp_df_cov, {
+cnt <- NA
+  cnt[cntcat =="1-4"] <- 1
+  cnt[cntcat =="5-9"] <- 2
+  cnt[cntcat =="10-14"] <- 3 
+  cnt[cntcat =="15-19"] <- 4
+  cnt[cntcat =="20-24"] <- 5
+  cnt[cntcat =="25-29"] <- 6
+  cnt[cntcat =="30-34"] <- 7
+  cnt[cntcat =="35-39"] <- 8
+  cnt[cntcat =="40-44"] <- 9
+  cnt[cntcat == "45-49"] <- 10
+  cnt[cntcat == "50+"] <- 11
+
+  Freq_1m <- round(Freq/1000000,digits=2)
+  Freq_perc <- round(Freq/sum(Freq)*100, digits=2)
+})  
+
+samp_df_cov <- samp_df_cov[order(samp_df_cov$cnt),]
+
+write.csv(cov_df2[,-c(1:2)],file.path(pathref,"Output/coverage",
+                            paste0("CpGCov_Freq.points_",samp_name,".csv")) )
+write.csv(samp_df_cov,file.path(pathref,"Output/coverage",
+                            paste0("CpGCov_Freq.rangegrp.perc_",samp_name,".csv")) )
+return(list(cov_df2[,-c(1:2)],samp_df_cov))
+
+}
+
+GetDataCor <- function(pathtemp,f,ncov){
+df1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(df1) <- c("chr","start","end","meth.cnt","depth")
+
+df2 <- as.data.frame(df1) %>% filter(depth>=ncov) %>%
+      mutate(chr_cpg_loc = paste0(chr,"_",start,"_",end),
+             beta=round(meth.cnt/depth, digits=5))
+print(nrow(df2))
+return(df2)
+}
+
+```
+
+# K562 titrations
+
+```{r cov_samples}
+pathtemp <- "D:/Jingru/deconv/Data/correlation_df"
+
+f="K562100ngXR23A_comb"
+k562.100ng_1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(k562.100ng_1) <- c("chr","start","end","meth.cnt","depth")
+
+f="K5621U10XR22A_comb"
+k562.1ng_1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(k562.1ng_1) <- c("chr","start","end","meth.cnt","depth")
+
+f="K56210U10XR22A_comb"
+k562.10ng_1 <- fread(file.path(pathtemp,
+                     paste0(f,"-merged.cov.SNPfiltered_clean.txt")),
+                     quote="",sep="\t")
+colnames(k562.10ng_1) <- c("chr","start","end","meth.cnt","depth")
+
+
+k562.100ng_cov_ls <- GetFreqData(samp_df=k562.100ng_1, "K562.100ng_comb")
+k562.1ng_cov_ls <- GetFreqData(samp_df=k562.1ng_1, "K562.1ng_comb")
+k562.10ng_cov_ls <- GetFreqData(samp_df=k562.10ng_1, "K562.10ng1w_comb")
+k562.100ng_covdf <- as.data.frame(k562.100ng_cov_ls[[2]])
+k562.100ng_covdf$grp = "100ng"
+k562.1ng_covdf <- k562.1ng_cov_ls[[2]]
+k562.1ng_covdf$grp = "1ng"
+k562.10ng_covdf <- k562.10ng_cov_ls[[2]]
+k562.10ng_covdf$grp = "10ng"
+
+k562_cov_comb <- rbind(k562.100ng_covdf, k562.10ng_covdf, k562.1ng_covdf)
+k562_cov_comb$grp.f <- factor(as.factor(k562_cov_comb$grp), order=T,
+                 levels=c("100ng","10ng","1ng"),
+                 labels=c("100 ng","10 ng","1 ng"))
+k562_cov_comb$cntcat
+
+pline_perc_k562v1 <- ggplot(data=k562_cov_comb, 
+                          aes(x = cnt, y = Freq_perc, color=grp.f)) +
+  geom_line(linewidth=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#011f4b","#005b96","#b3cde0"))+
+  scale_x_continuous(breaks=seq(1,11, by = 1),
+                     #labels=c(1,seq(5, 50, by = 5)),
+                     labels=c("1-4", "5-9", "10-14", "15-19", "20-24",
+                              "25-29", "30-34","35-39", "40-44", "45-49","50+"),
+                     limits=c(0.8,11.2), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,60, by = 20),
+                     labels=seq(0,60, by = 20),
+                     limits=c(0,60), expand = c(0, 0)) +
+  labs(x = "Coverage", y = "Percentage of CpGs (%)", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+
+pline_perc_k562v1
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),
+# "-K562input_CpGCov_Freqv1.pdf")), 
+#     width = 4.8, height = 3.2, useDingbats = FALSE)
+# pline_perc_k562v1
+# dev.off()
+```
+
+
+```{r k562_cumulative_perc}
+#############################
+
+k562.100ng_ac <- as.data.frame(k562.100ng_cov_ls[[1]])
+k562.100ng_ac$grp = "100ng"
+k562.100ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+k562.1ng_ac <- as.data.frame(k562.1ng_cov_ls[[1]])
+k562.1ng_ac$grp = "1ng"
+k562.1ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+k562.10ng_ac <- as.data.frame(k562.10ng_cov_ls[[1]])
+k562.10ng_ac$grp = "10ng"
+k562.10ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+k562_ac_comb <- rbind(k562.100ng_ac, k562.10ng_ac, k562.1ng_ac)
+k562_ac_comb <- k562_ac_comb %>% 
+  mutate(grp.f = factor(as.factor(grp), order=T,
+                 levels=c("100ng","10ng","1ng"),
+                 labels=c("100 ng","10 ng","1 ng")),
+         gt_cov_1m = round(gt_cov/1000000,2),
+         cnt_ac.f = factor(as.factor(cnt_ac), order=T,
+                 levels=c("1","5","10","15","20","30","40","50"),
+                 labels=c("1","5","10","15","20","30","40","50")))
+
+pline_perc_k562ac <- ggplot(data=k562_ac_comb, 
+                          aes(x = cnt_ac, y = cnt_perc, color=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#011f4b","#005b96","#b3cde0"))+
+  scale_x_continuous(breaks=c(1,5,10,15,20,30,40,50),
+                     labels=c(1,5,10,15,20,30,40,50),
+                     # labels=c("1-4", "5-9", "10-14", "15-19", "20-24",
+                     #          "25-29", "30-34","35-39", "40-44", "45-49","50+"),
+                     limits=c(0.1,52), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,102), expand = c(0, 0)) +
+  labs(x = "Coverage", y = "Cumulative percentage\nof CpGs (%)", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pline_perc_k562ac
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-K562input_CpGCov_accu.pdf")), 
+#     width = 5, height = 3.2, useDingbats = FALSE)
+# pline_perc_k562ac
+# dev.off()
+
+#######################
+pline_cnt_k562ac <- ggplot(data=k562_ac_comb, 
+                          aes(x = cnt_ac, y = gt_cov_1m, color=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#011f4b","#005b96","#b3cde0"))+
+  scale_x_continuous(breaks=c(1,5,10,15,20,30,40,50),
+                     labels=c(1,5,10,15,20,30,40,50),
+                     # labels=c("1-4", "5-9", "10-14", "15-19", "20-24",
+                     #          "25-29", "30-34","35-39", "40-44", "45-49","50+"),
+                     limits=c(0.1,52), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,15, by = 3),
+                     labels=seq(0,15, by = 3),
+                     limits=c(0,15), expand = c(0, 0)) +
+  labs(x = "Coverage (deduplicated)", y = "Covered CpGs (million)", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pline_cnt_k562ac
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-K562input_CpGCov_cnt.pdf")), 
+#     width = 5.4, height = 3.2, useDingbats = FALSE)
+# pline_cnt_k562ac
+# dev.off()
+
+```
+
+```{r k562_reads}
+###################
+#reads
+reads <- read.csv(file.path(pathdil,"titration_bamFiles", "titration_bam_counts.csv"))
+reads_k562 <- reads[reads$Sample_tp=="K562",]
+reads_k562 <- reads_k562 %>% 
+  mutate(total_reads1M = round(total_reads/1000000,1),
+         dedup_reads1M = round(dedup_reads/1000000,1),
+         DNA.input.f = factor(as.factor(DNA.input), order=T,
+                       levels=c("100 ng","10 ng","1 ng"),
+                       labels=c("100 ng","10 ng","1 ng")))
+
+reads_k562_1 <- reads_k562[,c("DNA.input.f","dedup_reads1M")]
+reads_k562_1$grp = "Deduplicated"
+colnames(reads_k562_1)[2]="Reads"
+reads_k562_2 <- reads_k562[,c("DNA.input.f","total_reads1M")]
+reads_k562_2$grp = "Total"
+colnames(reads_k562_2)[2]="Reads"
+
+reads_k562m <- rbind(reads_k562_1,reads_k562_2)
+reads_k562m$grp.f <- factor(as.factor(reads_k562m$grp), order=T,
+                       levels=c("Total","Deduplicated"),
+                       labels=c("Total","Deduplicated"))
+
+pread_k562 <- ggplot(data=reads_k562m, aes(x = DNA.input.f, y = Reads, 
+                                           color=grp.f, group=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#db3a34","#177e89"))+
+  scale_y_continuous(breaks=seq(0,200, by = 50),
+                     labels=seq(0,200, by = 50),
+                     limits=c(0,200), expand = c(0, 0)) +
+  labs(x = "DNA input", y = "Paired-end reads\n(million)", color="Reads") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+
+pread_k562_2 <- ggMarginal(pread_k562, margins = "y", type="boxplot",groupFill=T)
+pread_k562_2
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-K562input_reads.pdf")), 
+#     width = 5.4, height = 3, useDingbats = FALSE)
+# pread_k562_2
+# dev.off()
+
+```
+
+# BF3713
+
+```{r BF3713_cov}
+###################################
+#BF3713,1cov
+
+BF3713dil250ng_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil250ngXR23B_comb",ncov=1)
+#12191180
+BF3713dil100ng_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil100ngXR23B_comb",ncov=1)
+#12464517
+
+BF3713dil10ng_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil10ngXR23B_comb",ncov=1)
+#12191769
+
+BF3713dil1ng_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil1ngXR23B_comb",ncov=1)
+#11846334
+
+BF3713dil100pg_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil100pgXR23B_comb",ncov=1)
+#6643852
+
+BF3713dil250pg_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/XR21_titration/titration_covFiles",
+             f="BF3713dil250pgXR23B_comb",ncov=1)
+#8083270
+
+BF3713dil250ng_cov_ls <- GetFreqData(samp_df=BF3713dil250ng_1cov, "BF3713dil250ng.1cov")
+BF3713dil100ng_cov_ls <- GetFreqData(samp_df=BF3713dil100ng_1cov, "BF3713dil100ng.1cov")
+BF3713dil10ng_cov_ls <- GetFreqData(samp_df=BF3713dil10ng_1cov, "BF3713dil10ng.1cov")
+BF3713dil1ng_cov_ls <- GetFreqData(samp_df=BF3713dil1ng_1cov, "BF3713dil1ng.1cov")
+BF3713dil250pg_cov_ls <- GetFreqData(samp_df=BF3713dil250pg_1cov, "BF3713dil250pg.1cov")
+#BF3713dil100pg_cov_ls <- GetFreqData(samp_df=BF3713dil100pg_1cov, "BF3713dil100pg.1cov")
+
+BF3713dil250ng_covdf <- as.data.frame(BF3713dil250ng_cov_ls[[2]])
+BF3713dil250ng_covdf$grp = "250ng"
+BF3713dil100ng_covdf <- BF3713dil100ng_cov_ls[[2]]
+BF3713dil100ng_covdf$grp = "100ng"
+BF3713dil10ng_covdf <- BF3713dil10ng_cov_ls[[2]]
+BF3713dil10ng_covdf$grp = "10ng"
+BF3713dil1ng_covdf <- BF3713dil1ng_cov_ls[[2]]
+BF3713dil1ng_covdf$grp = "1ng"
+BF3713dil250pg_covdf <- BF3713dil250pg_cov_ls[[2]]
+BF3713dil250pg_covdf$grp = "0.25ng"
+
+BF3713_cov_comb <- rbind(BF3713dil250ng_covdf, BF3713dil100ng_covdf, 
+                         BF3713dil10ng_covdf, BF3713dil1ng_covdf,
+                         BF3713dil250pg_covdf)
+BF3713_cov_comb$grp.f <- factor(as.factor(BF3713_cov_comb$grp), order=T,
+                 levels=c("250ng","100ng","10ng","1ng","0.25ng"),
+                 labels=c("250 ng","100 ng","10 ng","1 ng","0.25 ng"))
+
+pline_perc_BF3713v1 <- ggplot(data=BF3713_cov_comb, 
+                            aes(x = cnt, y = Freq_perc, color=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#011f4b","#03396c","#005b96","#6497b1",
+                              "#b3cde0"))+
+  scale_x_continuous(breaks=seq(1,11, by = 1),
+                     #labels=c(1,seq(5, 50, by = 5)),
+                     labels=c("1-4", "5-9", "10-14", "15-19", "20-24",
+                              "25-29", "30-34","35-39", "40-44", "45-49","50+"),
+                     limits=c(0.8,11.2), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,100), expand = c(0, 0)) +
+  labs(x = "Coverage", y = "Percentage of CpGs (%)", color="DNA input") +
+   # Add vertical line & label
+  # geom_vline(xintercept = c(2,3,4,7), color="grey50",
+  #            linetype="dashed", linewidth=0.5) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pline_perc_BF3713v1
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-BF3713input_CpGCov_Freqv1.pdf")), 
+#     width = 5, height = 3.2, useDingbats = FALSE)
+# pline_perc_BF3713v1
+# dev.off()
+```
+
+```{r BF3713_cumulative_perc}
+###########################
+
+BF3713dil250ng_ac <- as.data.frame(BF3713dil250ng_cov_ls[[1]])
+BF3713dil250ng_ac$grp = "250ng"
+BF3713dil250ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+BF3713dil100ng_ac <- BF3713dil100ng_cov_ls[[1]]
+BF3713dil100ng_ac$grp = "100ng"
+BF3713dil100ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+BF3713dil10ng_ac <- BF3713dil10ng_cov_ls[[1]]
+BF3713dil10ng_ac$grp = "10ng"
+BF3713dil10ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+BF3713dil1ng_ac <- BF3713dil1ng_cov_ls[[1]]
+BF3713dil1ng_ac$grp = "1ng"
+BF3713dil1ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+BF3713dil250pg_ac <- BF3713dil250pg_cov_ls[[1]]
+BF3713dil250pg_ac$grp = "0.25ng"
+BF3713dil250pg_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+BF3713_ac_comb <- rbind(BF3713dil250ng_ac, BF3713dil100ng_ac, 
+                         BF3713dil10ng_ac, BF3713dil1ng_ac,
+                         BF3713dil250pg_ac)
+BF3713_ac_comb <- BF3713_ac_comb %>% 
+  mutate(grp.f = factor(as.factor(grp), order=T,
+                 levels=c("250ng","100ng","10ng","1ng","0.25ng"),
+                 labels=c("250 ng","100 ng","10 ng","1 ng","0.25 ng")),
+         gt_cov_1m = round(gt_cov/1000000,2),
+         cnt_ac.f = factor(as.factor(cnt_ac), order=T,
+                 levels=c("1","5","10","15","20","30","40", "50"),
+                 labels=c("1","5","10","15","20","30","40", "50")))
+
+# write.csv(BF3713_ac_comb,file.path(pathref,"Output/coverage",
+#                             paste0("CpGCov_Freq.points_BF3713ac.csv")) )
+
+pline_perc_BF3713ac <- ggplot(data=BF3713_ac_comb, 
+                            aes(x = cnt_ac, y = cnt_perc, color=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#011f4b","#03396c","#005b96","#6497b1",
+                              "#b3cde0"))+
+  scale_x_continuous(breaks=c(1,5,10,15,20,30,40,50),
+                     labels=c(1,5,10,15,20,30,40,50),
+                     limits=c(0.1,52), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,102), expand = c(0, 0)) +
+  labs(x = "Coverage", y = "Cumulative percentage\nof CpGs (%)", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pline_perc_BF3713ac
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-BF3713input_CpGCov_accu.pdf")), 
+#     width = 5.4, height = 3.2, useDingbats = FALSE)
+# pline_perc_BF3713ac
+# dev.off()
+
+```
+
+```{r BF3713_counts}
+pline_cnt_BF3713ac <- ggplot(data=BF3713_ac_comb, 
+                            aes(x = cnt_ac, y = gt_cov_1m, color=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#011f4b","#03396c","#005b96","#6497b1",
+                              "#b3cde0"))+
+  scale_x_continuous(breaks=c(1,5,10,15,20,30,40,50),
+                     labels=c(1,5,10,15,20,30,40,50),
+                     limits=c(0.1,52), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,15, by = 3),
+                     labels=seq(0,15, by = 3),
+                     limits=c(0,15), expand = c(0, 0)) +
+  labs(x = "Coverage (deduplicated)", y = "Covered CpGs (million)", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pline_cnt_BF3713ac
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-BF3713input_CpGCov_cnt.pdf")), 
+#     width = 5.4, height = 3.2, useDingbats = FALSE)
+# pline_cnt_BF3713ac
+# dev.off()
+
+########################
+coeff=8
+pdual_BF3713ac <- ggplot(data=BF3713_ac_comb, 
+                            aes(x = cnt_ac)) +
+  #geom_bar(aes(y=gt_cov_1m, fill=grp.f), stat="identity",
+  #position=position_dodge(), width=3.5) + 
+  geom_line(aes(y=gt_cov_1m, color=grp.f),linetype=2, size=0.8) + 
+  geom_point(aes(y=gt_cov_1m, color=grp.f), shape=17, size=1.3) +
+  geom_point(aes(y=cnt_perc/coeff, color=grp.f), shape=16, size=1.3) +
+  geom_line(aes(y=cnt_perc/coeff, color=grp.f), size=0.8)+
+  scale_color_manual(values=c("#011f4b","#03396c","#005b96","#6497b1",
+                              "#b3cde0"))+
+  scale_fill_manual(values=c("#011f4b","#03396c","#005b96","#6497b1",
+                              "#b3cde0"))+
+  scale_x_continuous(breaks=c(1,5,10,15,20,30,40,50),
+                     labels=c(1,5,10,15,20,30,40,50),
+                     limits=c(-3,54), expand = c(0, 0)) +
+  scale_y_continuous(limits=c(0,13),expand = c(0, 0),
+                     name = "Covered CpGs (million)",
+    sec.axis = sec_axis(~.*coeff, name="Cumulative percentage\nof CpGs (%)")) +
+  labs(x = "Coverage", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pdual_BF3713ac
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-BF3713input_CpGCov_accu.pdf")), 
+#     width = 5.8, height = 3.2, useDingbats = FALSE)
+# pdual_BF3713ac
+# dev.off()
+```
+
+```{r BF3713_reads}
+###################
+#reads
+reads <- read.csv(file.path(pathdil,"titration_bamFiles", "titration_bam_counts.csv"))
+reads_BF <- reads[reads$Sample_tp=="BF3713",]
+reads_BF <- reads_BF %>% 
+  mutate(total_reads1M = round(total_reads/1000000,1),
+         dedup_reads1M = round(dedup_reads/1000000,1),
+         DNA.input.f = factor(as.factor(DNA.input), order=T,
+                       levels=c("250 ng","100 ng","10 ng","1 ng","0.25 ng"),
+                       labels=c("250 ng","100 ng","10 ng","1 ng","0.25 ng")))
+
+reads_BF1 <- reads_BF[,c("DNA.input.f","dedup_reads1M")]
+reads_BF1$grp = "Deduplicated"
+colnames(reads_BF1)[2]="Reads"
+reads_BF2 <- reads_BF[,c("DNA.input.f","total_reads1M")]
+reads_BF2$grp = "Total"
+colnames(reads_BF2)[2]="Reads"
+
+reads_BFm <- rbind(reads_BF1,reads_BF2)
+reads_BFm$grp.f <- factor(as.factor(reads_BFm$grp), order=T,
+                       levels=c("Total","Deduplicated"),
+                       labels=c("Total","Deduplicated"))
+
+pread_BF3713 <- ggplot(data=reads_BFm, aes(x = DNA.input.f, y = Reads, 
+                                           color=grp.f, group=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#db3a34","#177e89"))+
+  scale_y_continuous(breaks=seq(0,200, by = 50),
+                     labels=seq(0,200, by = 50),
+                     limits=c(0,200), expand = c(0, 0)) +
+  labs(x = "DNA input", y = "Paired-end reads\n(million)", color="Reads") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+
+pread_BF3713_2 <- ggMarginal(pread_BF3713, margins = "y", type="boxplot",groupFill=T)
+pread_BF3713_2
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-BF3713input_reads.pdf")), 
+#     width = 5.4, height = 3, useDingbats = FALSE)
+# pread_BF3713_2
+# dev.off()
+
+```
+
+# FFPE samples
+
+```{r TF640_cov}
+##############################
+#FFPE, TF640, 1cov
+ffpe50_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE50XR23B_comb",ncov=1)
+#6079610, cov=10
+#4531803, cov=15
+
+ffpe10_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE10XR23B_comb",ncov=1)
+#6498662, cov=10
+#5042679, cov=15
+ffpe5_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE5XR23B_comb",ncov=1)
+#5732418, cov=10
+#4023812, cov=15
+ffpe1_1cov <- 
+  GetDataCor(pathtemp="D:/Jingru/deconv/Data/Upload_processed/methylation_call_benchmarks",
+             f="FFPE1XR24A_comb",ncov=1)
+#834532, cov=10
+#220286, cov=15
+
+ffpe.50ng_cov_ls <- GetFreqData(samp_df=ffpe50_1cov, "ffpe.50ng_comb")
+ffpe.10ng_cov_ls <- GetFreqData(samp_df=ffpe10_1cov, "ffpe.10ng_comb")
+ffpe.5ng_cov_ls <- GetFreqData(samp_df=ffpe5_1cov, "ffpe.5ng_comb")
+ffpe.1ng_cov_ls <- GetFreqData(samp_df=ffpe1_1cov, "ffpe.1ng_comb")
+
+ffpe.50ng_covdf <- as.data.frame(ffpe.50ng_cov_ls[[2]])
+ffpe.50ng_covdf$grp = "50ng"
+ffpe.10ng_covdf <- ffpe.10ng_cov_ls[[2]]
+ffpe.10ng_covdf$grp = "10ng"
+ffpe.5ng_covdf <- ffpe.5ng_cov_ls[[2]]
+ffpe.5ng_covdf$grp = "5ng"
+ffpe.1ng_covdf <- ffpe.1ng_cov_ls[[2]]
+ffpe.1ng_covdf$grp = "1ng"
+
+ffpe_cov_comb <- rbind(ffpe.50ng_covdf, ffpe.10ng_covdf, ffpe.5ng_covdf, ffpe.1ng_covdf)
+ffpe_cov_comb$grp.f <- factor(as.factor(ffpe_cov_comb$grp), order=T,
+                 levels=c("50ng","10ng","5ng","1ng"),
+                 labels=c("50 ng","10 ng","5 ng","1 ng"))
+ffpe_cov_comb$cntcat
+
+pline_perc_ffpev1 <- ggplot(data=ffpe_cov_comb, 
+                          aes(x = cnt, y = Freq_perc, color=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#011f4b","#005b96","#6497b1","#b3cde0"))+
+  scale_x_continuous(breaks=seq(1,11, by = 1),
+                     #labels=c(1,seq(5, 50, by = 5)),
+                     labels=c("1-4", "5-9", "10-14", "15-19", "20-24",
+                              "25-29", "30-34","35-39", "40-44", "45-49","50+"),
+                     limits=c(0.8,11.2), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,80, by = 20),
+                     labels=seq(0,80, by = 20),
+                     limits=c(0,80), expand = c(0, 0)) +
+  labs(x = "Coverage", y = "Percentage of CpGs (%)", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pline_perc_ffpev1
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-FFPEinput_CpGCov_Freqv1.pdf")), 
+#     width = 4.8, height = 3.2, useDingbats = FALSE)
+# pline_perc_ffpev1
+# dev.off()
+```
+
+```{r TF640_cumulative_perc}
+#############################
+
+ffpe.50ng_ac <- as.data.frame(ffpe.50ng_cov_ls[[1]])
+ffpe.50ng_ac$grp = "50ng"
+ffpe.50ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+ffpe.10ng_ac <- as.data.frame(ffpe.10ng_cov_ls[[1]])
+ffpe.10ng_ac$grp = "10ng"
+ffpe.10ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+ffpe.1ng_ac <- as.data.frame(ffpe.1ng_cov_ls[[1]])
+ffpe.1ng_ac$grp = "1ng"
+ffpe.1ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+ffpe.5ng_ac <- as.data.frame(ffpe.5ng_cov_ls[[1]])
+ffpe.5ng_ac$grp = "5ng"
+ffpe.5ng_ac$cnt_ac = c(1,5,10,15,20,30,40,50)
+
+
+ffpe_ac_comb <- rbind(ffpe.50ng_ac, ffpe.10ng_ac, ffpe.5ng_ac, ffpe.1ng_ac)
+ffpe_ac_comb <- ffpe_ac_comb %>% 
+  mutate(grp.f = factor(as.factor(ffpe_ac_comb$grp), order=T,
+                 levels=c("50ng","10ng","5ng","1ng"),
+                 labels=c("50 ng","10 ng","5 ng","1 ng")),
+         gt_cov_1m = round(gt_cov/1000000,2),
+         cnt_ac.f = factor(as.factor(cnt_ac), order=T,
+                 levels=c("1","5","10","15","20","30","40", "50"),
+                 labels=c("1","5","10","15","20","30","40", "50")))
+
+pline_perc_ffpeac <- ggplot(data=ffpe_ac_comb, 
+                          aes(x = cnt_ac, y = cnt_perc, color=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#011f4b","#005b96","#6497b1","#b3cde0"))+
+  scale_x_continuous(breaks=c(1,5,10,15,20,30,40,50),
+                     labels=c(1,5,10,15,20,30,40,50),
+                     # labels=c("1-4", "5-9", "10-14", "15-19", "20-24",
+                     #          "25-29", "30-34","35-39", "40-44", "45-49","50+"),
+                     limits=c(0.1,52), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,102), expand = c(0, 0)) +
+  labs(x = "Coverage", y = "Cumulative percentage\nof CpGs (%)", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pline_perc_ffpeac
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-FFPEinput_CpGCov_accu.pdf")), 
+#     width = 5.4, height = 3.2, useDingbats = FALSE)
+# pline_perc_ffpeac
+# dev.off()
+```
+
+```{r TF640_reads}
+###################
+pline_cnt_ffpeac <- ggplot(data=ffpe_ac_comb, 
+                          aes(x = cnt_ac, y = gt_cov_1m, color=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#011f4b","#005b96","#6497b1","#b3cde0"))+
+  scale_x_continuous(breaks=c(1,5,10,15,20,30,40,50),
+                     labels=c(1,5,10,15,20,30,40,50),
+                     # labels=c("1-4", "5-9", "10-14", "15-19", "20-24",
+                     #          "25-29", "30-34","35-39", "40-44", "45-49","50+"),
+                     limits=c(0.1,52), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,15, by = 3),
+                     labels=seq(0,15, by = 3),
+                     limits=c(0,15), expand = c(0, 0)) +
+  labs(x = "Coverage (deduplicated)", y = "Covered CpGs (million)", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pline_cnt_ffpeac
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-FFPEinput_CpGCov_cnt.pdf")), 
+#     width = 5.4, height = 3.2, useDingbats = FALSE)
+# pline_cnt_ffpeac
+# dev.off()
+
+###################
+coeff=8
+pdual_ffpeac <- ggplot(data=ffpe_ac_comb, 
+                            aes(x = cnt_ac)) +
+  #geom_bar(aes(y=gt_cov_1m, fill=grp.f), stat="identity",
+  #position=position_dodge(), width=3.5) + 
+  geom_line(aes(y=gt_cov_1m, color=grp.f),linetype=2, size=0.8) + 
+  geom_point(aes(y=gt_cov_1m, color=grp.f), shape=17, size=1.3) +
+  geom_point(aes(y=cnt_perc/coeff, color=grp.f), shape=16, size=1.3) +
+  geom_line(aes(y=cnt_perc/coeff, color=grp.f), size=0.8)+
+  scale_color_manual(values=c("#011f4b","#005b96","#6497b1","#b3cde0"))+
+  scale_fill_manual(values=c("#011f4b","#005b96","#6497b1","#b3cde0"))+
+  scale_x_continuous(breaks=c(1,5,10,15,20,30,40,50),
+                     labels=c(1,5,10,15,20,30,40,50),
+                     limits=c(-3,54), expand = c(0, 0)) +
+  scale_y_continuous(limits=c(0,13),expand = c(0, 0),
+                     name = "Covered CpGs (million)",
+    sec.axis = sec_axis(~.*coeff, name="Cumulative percentage\nof CpGs (%)")) +
+  labs(x = "Coverage", color="DNA input") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+pdual_BF3713ac
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-BF3713input_CpGCov_accu.pdf")), 
+#     width = 5.8, height = 3.2, useDingbats = FALSE)
+# pdual_BF3713ac
+# dev.off()
+
+###################
+#reads
+reads <- read.csv(file.path(pathdil,"titration_bamFiles", "titration_bam_counts.csv"))
+reads_TF <- reads[reads$Sample_tp=="FFPE",]
+reads_TF <- reads_TF %>% 
+  mutate(total_reads1M = round(total_reads/1000000,1),
+         dedup_reads1M = round(dedup_reads/1000000,1),
+         DNA.input.f = factor(as.factor(DNA.input), order=T,
+                       levels=c("50 ng","10 ng","5 ng","1 ng"),
+                       labels=c("50 ng","10 ng","5 ng","1 ng")))
+
+reads_TF1 <- reads_TF[,c("DNA.input.f","dedup_reads1M")]
+reads_TF1$grp = "Deduplicated"
+colnames(reads_TF1)[2]="Reads"
+reads_TF2 <- reads_TF[,c("DNA.input.f","total_reads1M")]
+reads_TF2$grp = "Total"
+colnames(reads_TF2)[2]="Reads"
+
+reads_TFm <- rbind(reads_TF1,reads_TF2)
+reads_TFm$grp.f <- factor(as.factor(reads_TFm$grp), order=T,
+                       levels=c("Total","Deduplicated"),
+                       labels=c("Total","Deduplicated"))
+
+pread_ffpe <- ggplot(data=reads_TFm, aes(x = DNA.input.f, y = Reads, 
+                                           color=grp.f, group=grp.f)) +
+  geom_line(size=1)+
+  geom_point(size=1.5)+
+  scale_color_manual(values=c("#db3a34","#177e89"))+
+  scale_y_continuous(breaks=seq(0,200, by = 50),
+                     labels=seq(0,200, by = 50),
+                     limits=c(0,200), expand = c(0, 0)) +
+  labs(x = "DNA input", y = "Paired-end reads\n(million)", color="Reads") +
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+
+pread_ffpe_2 <- ggMarginal(pread_ffpe, margins = "y", type="boxplot",groupFill=T)
+pread_ffpe_2
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),"-FFPEinput_reads.pdf")), 
+#     width = 5.4, height = 3, useDingbats = FALSE)
+# pread_ffpe_2
+# dev.off()
+
+```
+
+# Sample length size
+
+```{r BF3713_length}
+samp_ls <- c("BF3713dil1ngXR23B_comb", "BF3713dil10ngXR23B_comb", 
+             "BF3713dil100ngXR23B_comb", "BF3713dil250ngXR23B_comb",
+             "BF3713dil250pgXR23B_comb")
+  
+comb_blk <- data.frame()
+  for (i in 1:length(samp_ls)) {
+  
+    df <- read.table(file.path(pathdil, "titration_lengthFiles",
+                         paste0(samp_ls[i],"-hg38_PE-dedup_sorted.hist")),
+                     quote="",sep="\t")
+    
+    comb_blk <- cbind.fill(comb_blk, as.data.frame(df[,4]))
+  }
+comb_df <- as.data.frame(apply(comb_blk, 1, function(x) tapply(x,colnames(comb_blk),sum)))
+colnames(comb_df) = "sum"
+comb_df$mean_perc <- round(comb_df$sum/5*100, 2)
+
+df <- read.table(file.path(pathdil, "titration_lengthFiles",
+                         paste0("BF3713dil1ngXR23B_comb","-hg38_PE-dedup_sorted.hist")),
+                     quote="",sep="\t")
+ 
+comb_df2 <- cbind(df[,c(1:2)], as.data.frame(comb_df[,2]))
+colnames(comb_df2) <- c("grp_num","grp_cov","Percentage")
+
+plength_perc_BF3713 <- ggplot(data = comb_df2, 
+                            aes(x = grp_cov, y = Percentage)) +
+  geom_line(size=0.9)+
+  geom_point(size=1.3)+
+  scale_x_continuous(breaks=c(0,seq(100,1000, by = 100)),
+                     labels=c(0,seq(100,1000, by = 100)),
+                     limits=c(0,1002), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,10, by = 2),
+                     labels=seq(0,10, by = 2),
+                     limits=c(0,10), expand = c(0, 0)) +
+  labs(x = "Length size (bp)", y = "Percentage (%)", color="DNA input") +
+   # Add vertical line & label
+  geom_vline(xintercept = c(50,100,150,200), color="grey50",
+             linetype="dashed", linewidth=0.5) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+plength_perc_BF3713
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),
+#                      "-BF3713input_length_perc.pdf")), 
+#     width = 3.7, height = 3.2, useDingbats = FALSE)
+# plength_perc_BF3713
+# dev.off()
+```
+
+```{r K562_length}
+##############################
+
+samp_ls <- c("K562100ngXR23A_comb","K56210U10XR22A_comb", "K5621U10XR22A_comb")
+
+comb_blk <- data.frame()
+  for (i in 1:length(samp_ls)) {
+  
+    df <- read.table(file.path(pathK562, 
+                     paste0(samp_ls[i],"-hg38_PE/",samp_ls[i],"-hg38_PE-dedup_sorted.hist")),
+                     quote="",sep="\t")
+    
+    comb_blk <- cbind.fill(comb_blk, as.data.frame(df[,4]))
+  }
+comb_df <- as.data.frame(apply(comb_blk, 1, function(x) tapply(x,colnames(comb_blk),sum)))
+colnames(comb_df) = "sum"
+comb_df$mean_perc <- round(comb_df$sum/5*100, 2)
+
+df <- read.table(file.path(pathK562,"K562100ngXR23A_comb-hg38_PE",
+                         paste0("K562100ngXR23A_comb","-hg38_PE-dedup_sorted.hist")),
+                     quote="",sep="\t")
+ 
+comb_df2 <- cbind(df[,c(1:2)], as.data.frame(comb_df[,2]))
+colnames(comb_df2) <- c("grp_num","grp_cov","Percentage")
+
+plength_perc_k562 <- ggplot(data = comb_df2, 
+                            aes(x = grp_cov, y = Percentage)) +
+  geom_line(size=1)+
+  geom_point(size=1.3)+
+  scale_x_continuous(breaks=c(0,seq(100,1000, by = 100)),
+                     labels=c(0,seq(100,1000, by = 100)),
+                     limits=c(0,1002), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,6, by = 2),
+                     labels=seq(0,6, by = 2),
+                     limits=c(0,6), expand = c(0, 0)) +
+  labs(x = "Length size (bp)", y = "Percentage (%)", color="DNA input") +
+   # Add vertical line & label
+  geom_vline(xintercept = c(50,100,150,200), color="grey50",
+             linetype="dashed", linewidth=0.5) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+plength_perc_k562
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),
+#                      "-K562input_length_perc.pdf")), 
+#     width = 3.7, height = 3.2, useDingbats = FALSE)
+# plength_perc_k562
+# dev.off()
+```
+
+```{r FFPE_length}
+##############################
+
+samp_ls <- c("FFPE50XR23B_comb","FFPE10XR23B_comb", "FFPE5XR23B_comb","FFPE1XR24A_comb")
+
+comb_blk <- data.frame()
+  for (i in 1:length(samp_ls)) {
+  
+    df <- read.table(file.path(pathdil, "titration_lengthFiles",
+                         paste0(samp_ls[i],"-hg38_PE-dedup_sorted.hist")),
+                     quote="",sep="\t")
+    
+    comb_blk <- cbind.fill(comb_blk, as.data.frame(df[,4]))
+  }
+comb_df <- as.data.frame(apply(comb_blk, 1, function(x) tapply(x,colnames(comb_blk),sum)))
+colnames(comb_df) = "sum"
+comb_df$mean_perc <- round(comb_df$sum/5*100, 2)
+
+df <- read.table(file.path(pathdil, "titration_lengthFiles",
+                         paste0("FFPE50XR23B_comb","-hg38_PE-dedup_sorted.hist")),
+                     quote="",sep="\t")
+ 
+comb_df2 <- cbind(df[,c(1:2)], as.data.frame(comb_df[,2]))
+colnames(comb_df2) <- c("grp_num","grp_cov","Percentage")
+
+plength_perc_ffpe <- ggplot(data = comb_df2, 
+                            aes(x = grp_cov, y = Percentage)) +
+  geom_line(size=1)+
+  geom_point(size=1.3)+
+  scale_x_continuous(breaks=c(0,seq(100,1000, by = 100)),
+                     labels=c(0,seq(100,1000, by = 100)),
+                     limits=c(0,1002), expand = c(0, 0)) +
+  scale_y_continuous(breaks=seq(0,6, by = 2),
+                     labels=seq(0,6, by = 2),
+                     limits=c(0,6), expand = c(0, 0)) +
+  labs(x = "Length size (bp)", y = "Percentage (%)", color="DNA input") +
+   # Add vertical line & label
+  geom_vline(xintercept = c(50,100,150,200), color="grey50",
+             linetype="dashed", linewidth=0.5) + 
+  theme(panel.background = element_blank(),
+        #panel.grid.major.x = element_line(color = "grey50",size = 0.5,linetype = 2),
+        panel.border = element_rect(color="black",fill=NA),
+        text=element_text(size=15, face="bold"),
+        axis.text.x = element_text(size=15, face="bold",angle = 45,hjust=1),
+        axis.text.y = element_text(size=15, face="bold")
+)
+plength_perc_ffpe
+
+# pdf(file.path(pathref,"Output/coverage",
+#               paste0(str_sub(Sys.Date(), start = 3),
+#                      "-FFPEinput_length_perc.pdf")), 
+#     width = 3.7, height = 3.2, useDingbats = FALSE)
+# plength_perc_ffpe
+# dev.off()
+```
+
+#draw QC data
+
+```{r benchmark_QC}
+
+qc1 <- 
+  read.xlsx(xlsxFile = file.path(pathref,"Output/coverage", "K562_QC.xlsx"),
+            sheet = 1, skipEmptyRows = TRUE)
+qc2 <- qc1[,-c(3,4,6)] %>%
+  mutate(Enrich_rate_perc = round(Enrich_rate*100,1),
+         dedup_rate_perc = round(duplicates*100,1),
+         noncov_CG_perc = round(`Non-converted_CG_perc`*100,1))
+         
+k562.05ng <- qc2[1:2,]
+k562.05ng_1 <- as.data.frame(t(as.data.frame(colMeans(k562.05ng[,-1]))))
+rownames(k562.05ng_1) <- "k562.05ng"
+
+k562.5ng <- qc2[3:4,]
+k562.5ng_1 <- as.data.frame(t(as.data.frame(colMeans(k562.5ng[,-1]))))
+rownames(k562.5ng_1) <- "k562.5ng"
+
+k562.100ng <- qc2[5:6,]
+k562.100ng[1,3] = 0.9662
+k562.100ng[1,16] = 96.62
+
+k562.100ng_1 <- as.data.frame(t(as.data.frame(colMeans(k562.100ng[,-1]))))
+rownames(k562.100ng_1) <- "k562.100ng"
+
+p.1ng <- qc2[7:8,]
+p.1ng_1 <- as.data.frame(t(as.data.frame(colMeans(p.1ng[,-1]))))
+rownames(p.1ng_1) <- "p.1ng"
+
+p.05ng <- qc2[9:10,]
+p.05ng_1 <- as.data.frame(t(as.data.frame(colMeans(p.05ng[,-1]))))
+rownames(p.05ng_1) <- "p.05ng"
+
+p.025ng <- qc2[11:12,]
+p.025ng_1 <- as.data.frame(t(as.data.frame(colMeans(p.025ng[,-1]))))
+rownames(p.025ng_1) <- "p.025ng"
+
+p.0125ng <- qc2[13:14,]
+p.0125ng_1 <- as.data.frame(t(as.data.frame(colMeans(p.0125ng[,-1]))))
+rownames(p.0125ng_1) <- "p.0125ng"
+
+ffpe.1ng <- qc2[15:16,]
+ffpe.1ng_1 <- as.data.frame(t(as.data.frame(colMeans(ffpe.1ng[,-1]))))
+rownames(ffpe.1ng_1) <- "FFPE.1ng"
+
+ffpe.5ng <- qc2[19:20,]
+ffpe.5ng_1 <- as.data.frame(t(as.data.frame(colMeans(ffpe.5ng[,-1]))))
+rownames(ffpe.5ng_1) <- "FFPE.5ng"
+
+ffpe.10ng <- qc2[17:18,]
+ffpe.10ng_1 <- as.data.frame(t(as.data.frame(colMeans(ffpe.10ng[,-1]))))
+rownames(ffpe.10ng_1) <- "FFPE.10ng"
+
+ffpe.50ng <- qc2[21:22,]
+ffpe.50ng_1 <- as.data.frame(t(as.data.frame(colMeans(ffpe.50ng[,-1]))))
+rownames(ffpe.50ng_1) <- "FFPE.50ng"
+
+#======================================  
+#K562
+m_k562 <- rbind(k562.05ng_1,k562.5ng_1,k562.100ng_1)
+
+m_k562_1 <- m_k562  %>%
+  mutate(input.f = factor(as.factor(Sample_input), order=T,
+         levels=c("0.5","5","50"),
+         labels=c("0.5ng","5ng","50ng"))
+        ) 
+colnames(m_k562_1)
+
+dup1 <- ggplot(data=m_k562_1,  mapping = aes(x=input.f, y=dedup_rate_perc)) + 
+  geom_bar(stat = "identity", width = 0.5,fill="red") +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x=" ",y="Duplication rate (%)") +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,100), expand = c(0, 0)) +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        plot.margin = margin(0.4,0.4,0.4,0.4, "cm")
+        ) 
+dup1
+
+enrich1 <- ggplot(data=m_k562_1,  mapping = aes(x=input.f, y=Enrich_rate_perc)) + 
+  geom_bar(stat = "identity", width = 0.5,fill="Green2") +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x="gDNA input",y="On-target enrichment (%)") +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,100), expand = c(0, 0)) +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        plot.margin = margin(0.4,0.4,0.4,0.4, "cm")
+        ) 
+enrich1
+
+noncov_CG1 <- ggplot(data=m_k562_1,  mapping = aes(x=input.f, y=noncov_CG_perc)) + 
+  geom_bar(stat = "identity", width = 0.5,fill="#0042F9") +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x=" ",y="Non-converted CG rate (%)") +
+  scale_y_continuous(breaks=seq(0,20, by = 5),
+                     labels=seq(0,20, by = 5),
+                     limits=c(0,20), expand = c(0, 0)) +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        plot.margin = margin(0.4,0.4,0.4,0.4, "cm")
+        ) 
+noncov_CG1
+
+#======================================        
+#plasma
+m_p2 <- rbind(p.025ng_1,p.05ng_1,p.1ng_1)
+
+m_p2_1 <- m_p2  %>%
+  mutate(input.f = factor(as.factor(Sample_input), order=T,
+         levels=c("0.25","0.5","1"),
+         labels=c("0.25ng","0.5ng","1ng"))
+        ) 
+colnames(m_p2_1)
+
+dup2 <- ggplot(data=m_p2_1,  mapping = aes(x=input.f, y=dedup_rate_perc)) + 
+  geom_bar(stat = "identity", width = 0.5,fill="red") +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x=" ",y="Duplication rate (%)") +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,100), expand = c(0, 0)) +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        plot.margin = margin(0.4,0.4,0.4,0.4, "cm")
+        ) 
+dup2
+
+enrich2 <- ggplot(data=m_p2_1,  mapping = aes(x=input.f, y=Enrich_rate_perc)) + 
+  geom_bar(stat = "identity", width = 0.5,fill="Green2") +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x="cfDNA input",y="On-target enrichment (%)") +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,100), expand = c(0, 0)) +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        plot.margin = margin(0.4,0.4,0.4,0.4, "cm")
+        ) 
+enrich2
+
+noncov_CG2 <- ggplot(data=m_p2_1,  mapping = aes(x=input.f, y=noncov_CG_perc)) + 
+  geom_bar(stat = "identity", width = 0.5,fill="#0042F9") +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x=" ",y="Non-converted CG rate (%)") +
+  scale_y_continuous(breaks=seq(0,20, by = 5),
+                     labels=seq(0,20, by = 5),
+                     limits=c(0,20), expand = c(0, 0)) +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        plot.margin = margin(0.4,0.4,0.4,0.4, "cm")
+        ) 
+noncov_CG2     
+
+#======================================        
+#FFPE
+m_ffpe <- rbind(ffpe.1ng_1,ffpe.10ng_1,ffpe.50ng_1)
+m_ffpe_1 <- m_ffpe  %>%
+  mutate(input.f = factor(as.factor(Sample_input), order=T,
+         levels=c("0.5","5","25"),
+         labels=c("0.5ng","5ng","25ng"))
+        ) 
+colnames(m_ffpe_1)
+
+dup3 <- ggplot(data=m_ffpe_1,  mapping = aes(x=input.f, y=dedup_rate_perc)) + 
+  geom_bar(stat = "identity", width = 0.5,fill="red") +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x=" ",y="Duplication rate (%)") +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,100), expand = c(0, 0)) +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        plot.margin = margin(0.4,0.4,0.4,0.4, "cm")
+        ) 
+dup3
+
+enrich3 <- ggplot(data=m_ffpe_1,  mapping = aes(x=input.f, y=Enrich_rate_perc)) + 
+  geom_bar(stat = "identity", width = 0.5,fill="Green2") +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x="FFPE DNA input",y="On-target enrichment (%)") +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20),
+                     limits=c(0,100), expand = c(0, 0)) +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        plot.margin = margin(0.4,0.4,0.4,0.4, "cm")
+        ) 
+enrich3
+
+noncov_CG3 <- ggplot(data=m_ffpe_1,  mapping = aes(x=input.f, y=noncov_CG_perc)) + 
+  geom_bar(stat = "identity", width = 0.5,fill="#0042F9") +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x=" ",y="Non-converted CG rate (%)") +
+  scale_y_continuous(breaks=seq(0,20, by = 5),
+                     labels=seq(0,20, by = 5),
+                     limits=c(0,20), expand = c(0, 0)) +
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        plot.margin = margin(0.4,0.4,0.4,0.4, "cm")
+        ) 
+noncov_CG3    
+        
+
+pline_m <- ggarrange(dup1,enrich1,noncov_CG1,
+                     dup2,enrich2,noncov_CG2,
+                     dup3,enrich3,noncov_CG3,
+                 common.legend = TRUE, legend= "right",
+                 ncol = 3, nrow = 3,
+                 labels = c("a", " ", " ","b"," "," ","c"," "," "),vjust = 0.8)
+pline_m 
+# dev.new()  
+# pdf(file=file.path(pathref,"Output/coverage", "DNA_QC_barchart.pdf"), 
+#     width = 7, height = 8, useDingbats = FALSE)
+# pline_m
+# dev.off()  
+
+```
+

@@ -1,0 +1,616 @@
+---
+title: "Benchmarks_coverage"
+author: "Jingru Yu"
+date: '2024-04-30'
+output: html_document
+---
+
+```{r warning=FALSE, message=FALSE}
+
+#rm(list=ls())
+
+library(dplyr)
+library(reshape2)
+library(stringr)
+library(openxlsx)
+library(writexl) #save x
+
+#clean data
+library(Hmisc) #descriptives
+library(readr)
+library(data.table) #setDT
+library(scales)
+
+library(ggpubr) #ggarrange
+library(ggbreak) #scale_y_break
+library(ggplot2)
+library(cowplot) #ggdraw, a simple add-on to ggplot
+library(ggrepel) #geom_text_repel
+library(ggforce) # for 'geom_arc_bar'
+
+#function cbind.fill, combine cols with different lengths
+cbind.fill<-function(...){
+    nm <- list(...) 
+    nm<-lapply(nm, as.matrix)
+    n <- max(sapply(nm, nrow)) 
+    do.call(cbind, lapply(nm, function (x) 
+    rbind(x, matrix(, n-nrow(x), ncol(x))))) 
+}
+
+#trim the spaces at the start and end of string
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+pathref <- "D:/Jingru/references"
+pathpro <- "D:/Jingru/deconv/Data/Upload_processed" 
+
+```
+
+# 1. CpGs between scMarkers and other methods, Fig.2a
+
+```{r scMarkers_othermethods_CpGs}
+
+freq3 <- read.table(file = file.path(pathpro,"benchmarks",
+          "scMarkers_CpGCovPercent_diffmeth.csv"),
+           header=TRUE,stringsAsFactors = TRUE,quote="",sep="\t")
+
+freq3 <- freq3 %>%
+ mutate(
+        method_stack.f = factor(as.factor(method_stack), order=T,
+                levels=c("array.450k","array.epic",
+               "meDIPseq","length5","length4","length3","length2","length1"),
+                labels=c("450k array","EPIC array",
+               "meDIPseq","+-300","+-200","+-150","+-100","-50")),
+        method_grp.f = factor(as.factor(method_grp), order=T,
+                levels=c("array.450k","array.epic","CCGGflanked","RRBS","meDIPseq"),
+                labels=c("450k array","EPIC array",
+                         "CCGG flanks","RRBS","meDIP-seq")),
+        grp.f= factor(as.factor(grp), order=T,
+                      levels=c("scMarkers_t100","scMarkers_t300",
+                               "scMarkers_t500","scMarkers_t1000"),
+                      labels=c("scMarkers_t100","scMarkers_t300",
+                               "scMarkers_t500","scMarkers_t1000"))
+        ) 
+
+
+
+freq_t100 <- freq3 %>% filter(grp=="scMarkers_t100")
+freq_t300 <- freq3 %>% filter(grp!="scMarkers_t100")
+
+p_marker1 <- ggplot(data=freq_t100, aes(x=method_grp.f, y=per2, fill = method_stack.f)) + 
+  #geom_bar(stat = "identity",
+  #         position = "stack",width = 0.6) +
+  geom_col(position = "stack",width = 0.8) +
+  labs(y="Overlapping CpGs (%)",x="Assays", color="method_stack.f") +
+  scale_y_continuous(breaks=seq(0, 100, by = 20),
+                     labels=seq(0, 100, by = 20), limits=c(0,100)) + 
+  scale_fill_manual(values=c("#66A61E","#D95F02", "#0073E6", "#1c1500","#684d01", 
+                             "#b38502","#E6AB02","#fdd151"))+
+
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=11, angle=30, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=11, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=8)
+        ) +
+  guides(fill=guide_legend(ncol=3, byrow=F))
+
+# dev.new()  
+# pdf(file=file.path(pathpro,"benchmarks", 
+#     paste0(str_sub(Sys.Date(), start = 3),"scMarkers.t100_CpGCovPercent_diffmeth.pdf")), 
+#     width = 3, height = 5, useDingbats = FALSE)
+# p_marker1
+# dev.off()
+
+p_marker1
+
+```
+
+# 2. CpGs between CCGG regions and other methods, Fig.2b
+
+```{r CCGGflanks_othermethods_CpGs}
+
+freq <- read.xlsx(file.path(pathpro,"benchmarks",
+                            "CCGG_CpGCovPercent_distance_diffmeth.xlsx"),
+                      sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+
+freq$method.f <- factor(as.factor(freq$method), order=T,
+                levels=c("array.refCNS32k","array.refTCGA60k",
+               "array.450k","array.epic","scMarkers"),
+                labels=c("CNS classifier",
+                         "TCGA classifier",
+                         "450k array ","EPIC array",
+                         "All cell type markers"))
+
+############################################
+
+#stack by grp
+freq_stack1 <- freq %>%
+  mutate(
+         method_stack=ifelse(grp=="CCGGflank50", yes="length1",no=
+           ifelse(grp=="CCGGflank100", yes="length2", no=
+                    ifelse(grp=="CCGGflank150",yes="length3", no=
+                             ifelse(grp=="CCGGflank200",yes="length4",no=
+                                      ifelse(grp=="CCGGflank300",yes="length5",no=NA))))),
+         method_stack.f = factor(as.factor(method_stack), order=T,
+                levels=c("length5","length4","length3","length2","length1"),
+                labels=c("-300","-200","-150","-100","-50"))
+        )
+
+freq_stack1 <- freq_stack1 %>% group_by(method) %>% 
+  mutate(per2 = c(NA, diff(per)),
+         per2=ifelse(per2<0 & !is.na(per2), yes=0, no=
+                    ifelse(is.na(per2), yes=per, no=per2)))
+
+write.table(freq_stack1,file = file.path(pathref,"Output","CCGG_CpGCovPercent_stack_diffmeth.csv"), col.names=T,row.names=FALSE,quote=F,sep="\t")
+
+p2 <- ggplot(data=freq_stack1, aes(x=method.f, y=per2, fill = method_stack.f)) + 
+  #geom_bar(stat = "identity",
+  #         position = "stack",width = 0.6) +
+  geom_col(position = "stack",width = 0.8) +
+  labs(y="Overlapping CpGs (%)",x=NULL, color="method_stack.f") +
+  scale_y_continuous(breaks=seq(0, 100, by = 20),
+                     labels=seq(0, 100, by = 20), limits=c(0,100)) + 
+  #scale_x_discrete(guide = guide_axis(n.dodge=3))+ #dodge x labels
+  scale_fill_manual(values=c("#1c1500","#684d01","#b38502","#E6AB02","#fdd151"))+
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=11, angle=30, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=11, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=8)
+        ) +
+  guides(fill=guide_legend(ncol=3, byrow=F))
+p2
+
+# dev.new()  
+# pdf(file=file.path(pathpro,"benchmarks", 
+#                    paste0(str_sub(Sys.Date(), start = 3),
+#                    "-CCGG_CpGCovPercent_stack_diffmeth.pdf")), 
+#     width = 3, height = 5, useDingbats = FALSE)
+# p2
+# dev.off()
+
+```
+
+# 3. Enrichment fold, Fig.2g
+
+```{r GetFreqPlot}
+#load data
+k562_m <- 
+  read.xlsx(file.path(pathpro,"benchmarks","K562_enrichment_WGBSvs.enriched.xlsx"),
+                      sheet=1, skipEmptyRows=FALSE, colNames = TRUE)
+
+p_line1 <- ggplot(data=k562_m, aes(x = bp.cnt_seq, y = perc, color=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100)) +
+  scale_color_manual(values=c("#0042F9","red"))+
+  labs(x = "Base pairs sequenced (billion)", y = "Overlapped regions\n(% with coverage >=10)") +
+  facet_wrap(~ marker_type.f, ncol = 3) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+p_line1
+  
+# pdf(file.path(pathpro,"benchmarks",paste0("subsamp.cov10_bpcnt_seq_3panels.pdf")), 
+#     width = 8.5, height = 3.8, useDingbats = FALSE)
+# p_line1
+# dev.off()
+
+#y=1.53x-22.5; y=17.6, x=26.20915; 26.20915/5=5.24 #choose dots 20B,30B from WGBS
+#y=0.38x+43.2; y=78.1, x=91.84; 91.8/5=18.36 #choose dots 80B,90B from WGBS
+#y=2.79x-32.8; y=50.1, x=29.7; 29.7/5=5.94 #choose dots 20B,30B from WGBS
+
+```
+
+# 4. Features of CGIs, suppFig.1
+#stacked histogram, denominator is the total CpGs of genomic regions
+#numerator is CpGs covered by diffmeth
+
+```{r use CpG counts}
+
+##############################
+#suppFig.1a
+
+freq_featm2 <- read.table(file = file.path(pathpro,"benchmarks",
+           "features_CpGCovPercent_countCpG_diffmeth.csv"),
+            header=TRUE,stringsAsFactors = TRUE,quote="",sep="\t")
+
+freq_featm2 <- freq_featm2 %>%
+ mutate(
+        method_stack.f = factor(as.factor(method_stack), order=T,
+                levels=c("array.450k","array.epic",
+               "length5","length4","length3","length2","length1","scMarkers","meDIPseq"),
+                labels=c("450k array","EPIC array",
+               "200-300bp","150-200bp","100-150bp","50-100bp","50bp","Cell type markers","MeDIP-seq")),
+        method_grp.f = factor(as.factor(method_grp), order=T,
+                levels=c("array.450k","array.epic",
+               "CCGGflanked","RRBS","scMarkers","meDIPseq"),
+                labels=c("450k array","EPIC array",
+               "CCGG flanks","RRBS","Cell type markers","MeDIP-seq")),
+        grp.f = factor(as.factor(grp), order=T,
+                levels=c("CpG island","CpG shore","CpG shelf","CpG opensea",
+                         "Promoter","Enhancer",
+                         "Exon_coding","UTR","Intron","Intergenic"),
+                labels=c("CpG island","CpG shore","CpG shelf","Open sea",
+                         "Promoter","Enhancer",
+                         "CDS","UTR","Intron","Intergenic"))
+        ) 
+
+p_feat1 <- ggplot(data=freq_featm2, aes(x=method_grp.f, y=per2, fill=method_stack.f)) + 
+  geom_col(position = "stack",width = 0.6) +
+  facet_wrap(~ grp.f, ncol = 5) +
+  labs(y="CpG overlapping (%)", x=NULL, color="method_stack.f") +
+  scale_y_continuous(breaks=seq(0, 100, by = 20),
+                     labels=seq(0, 100, by = 20), limits=c(0,100)) + 
+  #scale_x_discrete(breaks=NULL) + #no x ticks
+  scale_fill_manual(values=c("#66A61E","#D95F02", "#1c1500","#684d01", 
+                             "#b38502","#E6AB02","#fdd151", "#1B9E77","#0073E6"))+
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        #axis.text.x = element_blank(), #no x labels
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=11, face="bold"),
+        axis.text.x = element_text(size=11, angle=45, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=11, face="bold"),
+        strip.text = element_text(size = 11, face="bold")
+        )
+
+# pdf(file=file.path(pathpro,"benchmarks", 
+#                    paste0(str_sub(Sys.Date(), start = 3), 
+#                    "-feat.GeneRegions_countCpG.no.overlap_stack_diffmeth.pdf")), 
+#     width = 7, height = 5, useDingbats = FALSE)
+# p_feat1
+# dev.off()
+
+p_feat1
+
+```
+
+# 5. Distance from CCGG motifs to all CpGs from diff methods, supplFig.1b
+
+```{r supplFig.1b, scMarker}
+
+#load allCpG_diffmeth_comb2
+load(file = file.path(pathref, "diffmeth", "23-07-12-allCpG_diffmeth_comb2.RData"))
+comb_all2$chr_loc <- paste0(comb_all2$chr,"_",comb_all2$start,"_",comb_all2$end)
+
+#load close_CCGG
+close_marker <- fread(file.path(pathref,"diffmeth/interFiles", "CCGG_close_scMarkers.bed"),
+                                  header = F, sep="\t",stringsAsFactors=FALSE)
+colnames(close_marker) <- c("chr","start_CG","end_CG","chr_dup","start_CCGG","end_CCGG","distance")
+head(close_marker)
+
+close_marker_or <- 
+  close_marker[order(close_marker$chr,close_marker$start_CG,close_marker$end_CG,close_marker$distance),]
+close_marker2 <- close_marker_or[!duplicated(close_marker_or[ , c("chr", "start_CG")]), ] #remove dups
+close_marker2 <- close_marker2[,c(1:3,5,6,7)] %>% 
+   mutate(chr_loc = paste0(chr,"_",start_CG,"_",end_CG),
+          dist_direct = ifelse((end_CCGG-end_CG>1), yes=-distance, no=distance))
+
+#combine
+samp.ls3 <- list(close_marker2, comb_all2[,c("chr_loc","scMarkers","scMarkers_top100")])
+comb_close <- samp.ls3 %>% purrr::reduce(inner_join, by="chr_loc")
+#comb_close <- comb_close[!duplicated(comb_close[ ,"chr_loc"]), ]
+rm(samp.ls3);gc()
+
+#order by distance
+comb_close <- close_marker2
+comb_close <- comb_close[order(comb_close$distance),]
+comb_close2 <- comb_close[comb_close$distance>=-2000 & comb_close$distance<=2000,]
+
+q95_marker <- comb_close %>%
+ summarise(Bin_q5 = quantile(x=dist_direct, 0.05),
+            Bin_q12 = quantile(x=dist_direct, 0.125),
+            Bin_q25 = quantile(x=dist_direct, 0.25),
+            Bin_q75 = quantile(x=dist_direct, 0.75),
+            Bin_q87 = quantile(x=dist_direct, 0.875),
+            Bin_q95 = quantile(x=dist_direct, 0.95))
+
+q95_marker_vec <- unname(unlist(as.data.frame(q95_marker)[1,]))
+
+p2 <- 
+  ggplot(data=comb_close2, aes(x=dist_direct)) +  
+  geom_histogram(bins=200) + 
+  scale_x_continuous(breaks=c(-2000,q95_marker_vec,2000),
+                     guide = guide_axis(n.dodge = 2),
+                     limits=c(-2005,2005),expand = c(0, 0)) +
+  scale_y_continuous(labels=scales::scientific) + 
+  scale_y_break(c(100000, 250000), scales = 0.5, space = 0.03) +
+    annotate("text", x = 90, y = 280000, label = "50%",size = 3) +
+    annotate("text", x = 450, y = 295000, label = "75%",size = 3) +
+    annotate("text", x = 1250, y = 310000, label = "95%",size =3) +
+  xlab("Distance from CCGG") + ylab ("Number of CpGs") + 
+  # Add vertical line & label
+  geom_vline(xintercept = as.vector(t(q95_marker[1,])[,1]), 
+             color=c("red", "#00AED7", "darkorange", "darkorange", "#00AED7", "red"),
+             linetype="dotted", linewidth=0.7) + 
+  theme(legend.position="none",
+        panel.grid=element_blank(),
+        panel.border=element_blank(),     
+        axis.text.x = element_text(size=13, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.ticks.y.right = element_blank(),
+        axis.text.y.right = element_blank(),
+        axis.text.x.top = element_blank(),
+        axis.ticks.x.top = element_blank(),
+        axis.line.x.top = element_blank())
+p2
+
+# ggsave(p2,file=file.path(pathref,"Output", 
+#                    paste0(str_sub(Sys.Date(), start = 3), 
+#                    "-CCGG_closeCpGs_scMarkers_hist.pdf")), 
+#     width = 5, height = 3.7, useDingbats = FALSE)
+
+```
+
+```{r supplFig.1b, extend100}
+
+#load close_CCGG
+close_xrbs100 <- fread(file.path(pathref,"diffmeth/interFiles", "CCGG_close_xrbs100.bed"),
+                                  header = F, sep="\t",stringsAsFactors=FALSE)
+colnames(close_xrbs100) <- c("chr","start_CG","end_CG","chr_dup","start_CCGG","end_CCGG","distance")
+head(close_xrbs100)
+
+close_xrbs100_or <- 
+  close_xrbs100[order(close_xrbs100$chr,close_xrbs100$start_CG,close_xrbs100$end_CG,close_xrbs100$distance),]
+close_xrbs100_2 <- close_xrbs100_or[!duplicated(close_xrbs100_or[ , c("chr", "start_CG")]), ] #remove dups
+close_xrbs100_2 <- close_xrbs100_2[,c(1:3,5,6,7)] %>% 
+   mutate(chr_loc = paste0(chr,"_",start_CG,"_",end_CG),
+          dist_direct = ifelse((end_CCGG-end_CG>1), yes=-distance, no=distance))
+
+#order by distance
+comb_close <- close_xrbs100_2
+comb_close <- comb_close[order(comb_close$distance),]
+comb_close2 <- comb_close[comb_close$distance>=-100 & comb_close$distance<=100,]
+
+q95_xrbs100 <- comb_close %>%
+ summarise(Bin_q5 = quantile(x=dist_direct, 0.05),
+            Bin_q12 = quantile(x=dist_direct, 0.125),
+            Bin_q25 = quantile(x=dist_direct, 0.25),
+            Bin_q75 = quantile(x=dist_direct, 0.75),
+            Bin_q87 = quantile(x=dist_direct, 0.875),
+            Bin_q95 = quantile(x=dist_direct, 0.95))
+
+q95_xrbs100_vec <- unname(unlist(as.data.frame(q95_xrbs100)[1,]))
+q95_xrbs100_vec
+
+p3 <- 
+  ggplot(data=comb_close2, aes(x=dist_direct)) +  
+  geom_histogram(bins=200) + 
+  scale_x_continuous(breaks=c(-100,q95_xrbs100_vec,100),
+                     guide = guide_axis(n.dodge = 2),
+                     limits=c(-102,102),expand = c(0, 0)) +
+  scale_y_continuous(labels=scales::scientific,limits=c(0,3000000)) + 
+  scale_y_break(c(200000, 1600000), scales = 0.5, space = 0.03) +
+    annotate("text", x = 5, y = 2400000, label = "50%",size = 3) +
+    annotate("text", x = 50, y = 2600000, label = "75%",size = 3) +
+    annotate("text", x = 80, y = 2800000, label = "95%",size =3) +
+  xlab("Distance from CCGG") + ylab ("Number of CpGs") + 
+  # Add vertical line & label
+  geom_vline(xintercept = as.vector(t(q95_xrbs100[1,])[,1]), 
+             color=c("red", "#00AED7", "darkorange", "darkorange", "#00AED7", "red"),
+             linetype="dotted", linewidth=0.7) + 
+  theme(legend.position="none",
+        panel.grid=element_blank(),
+        panel.border=element_blank(),     
+        axis.text.x = element_text(size=13, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.ticks.y.right = element_blank(),
+        axis.text.y.right = element_blank(),
+        axis.text.x.top = element_blank(),
+        axis.ticks.x.top = element_blank(),
+        axis.line.x.top = element_blank())
+p3
+
+ggsave(p3,file=file.path(pathref,"Output", 
+                   paste0(str_sub(Sys.Date(), start = 3), 
+                   "-CCGG_closeCpGs_xrbs100_hist.pdf")), 
+    width = 5, height = 3.7, useDingbats = FALSE)
+```
+
+
+```{r supplFig.1b, epic}
+#load close_CCGG
+close_epic <- fread(file.path(pathref,"diffmeth/interFiles", "CCGG_close_epic.bed"),
+                                  header = F, sep="\t",stringsAsFactors=FALSE)
+colnames(close_epic) <- c("chr","start_CG","end_CG","chr_dup","start_CCGG","end_CCGG","distance")
+head(close_epic)
+
+close_epic_or <- 
+  close_epic[order(close_epic$chr,close_epic$start_CG,close_epic$end_CG,close_epic$distance),]
+close_epic2 <- close_epic_or[!duplicated(close_epic_or[ , c("chr", "start_CG")]), ] #remove dups
+close_epic2 <- close_epic2[,c(1:3,5,6,7)] %>% 
+   mutate(chr_loc = paste0(chr,"_",start_CG,"_",end_CG),
+          dist_direct = ifelse((end_CCGG-end_CG>1), yes=-distance, no=distance))
+
+#order by distance
+comb_close <- close_epic2
+comb_close <- comb_close[order(comb_close$distance),]
+comb_close2 <- comb_close[comb_close$distance>=-2000 & comb_close$distance<=2000,]
+
+q95_epic <- comb_close %>%
+ summarise(Bin_q5 = quantile(x=dist_direct, 0.05),
+            Bin_q12 = quantile(x=dist_direct, 0.125),
+            Bin_q25 = quantile(x=dist_direct, 0.25),
+            Bin_q75 = quantile(x=dist_direct, 0.75),
+            Bin_q87 = quantile(x=dist_direct, 0.875),
+            Bin_q95 = quantile(x=dist_direct, 0.95))
+
+q95_epic_vec <- unname(unlist(as.data.frame(q95_epic)[1,]))
+
+p4 <- 
+  ggplot(data=comb_close2, aes(x=dist_direct)) +  
+  geom_histogram(bins=200) + 
+  scale_x_continuous(breaks=c(-2000,q95_epic_vec,2000),
+                     guide = guide_axis(n.dodge = 2),
+                     limits=c(-2005,2005),expand = c(0, 0)) +
+  scale_y_continuous(labels=scales::scientific) + 
+  #scale_y_break(c(30000, 60000), scales = 0.5, space = 0.03) +
+    annotate("text", x = 90, y = 105000, label = "50%",size = 3) +
+    annotate("text", x = 480, y = 120000, label = "75%",size = 3) +
+    annotate("text", x = 1400, y = 135000, label = "95%",size =3) +
+  xlab("Distance from CCGG") + ylab ("Number of CpGs") + 
+  # Add vertical line & label
+  geom_vline(xintercept = as.vector(t(q95_epic[1,])[,1]), 
+             color=c("red", "#00AED7", "darkorange", "darkorange", "#00AED7", "red"),
+             linetype="dotted", linewidth=0.7) + 
+  theme(legend.position="none",
+        panel.grid=element_blank(),
+        panel.border=element_blank(),     
+        axis.text.x = element_text(size=13, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.ticks.y.right = element_blank(),
+        axis.text.y.right = element_blank(),
+        axis.text.x.top = element_blank(),
+        axis.ticks.x.top = element_blank(),
+        axis.line.x.top = element_blank())
+p4
+
+# ggsave(p4,file=file.path(pathref,"Output", 
+#                    paste0(str_sub(Sys.Date(), start = 3), 
+#                    "-CCGG_closeCpGs_epic_hist.pdf")), 
+#     width = 5, height = 3.7, useDingbats = FALSE)
+
+```
+
+# 6. Methylation haplotypes coverage, suppFig.4c&d
+#use K56210ngXR21A_comb
+
+```{r GraphCpGCover}
+#draw bar chart and lien chart in one graph
+gp1 <- 
+  read.xlsx(xlsxFile = file.path(pathpro,"benchmarks", 
+                                 "K56210ngXR21A_comb_intBlocks_graph.xlsx"),
+            sheet = 1, skipEmptyRows = TRUE)
+
+#stack by grp
+gp2 <- gp1[!gp1$Group %in% c("1X","15X"),] %>%
+  filter(Pack_grp %in% c("Original","Total")) %>%
+  mutate(Pack_grp.f = factor(as.factor(Pack_grp), order=T,
+         levels=c("Total","Original"),
+         labels=c("Increased by intersection","Original")),
+         Group.f = factor(as.factor(Group), order=T,
+         levels=c("5X","10X","20X","30X"),
+         labels=c("5X","10X","20X","30X"))
+        ) %>%
+  arrange(desc(Value))
+  
+# The transformation factor
+transf_fact <- max(gp2$Value)/max(gp2$Perc)
+
+p1 <- ggplot(data=gp2,  mapping = aes(x=Group.f, y=Value, 
+                                      fill = Pack_grp.f, color = Pack_grp.f)) + 
+  geom_bar(stat = "identity", width = 0.5, position = position_identity(), color = NA) + 
+  geom_line(aes(y = transf_fact*Perc, group=Pack_grp.f)) + 
+  geom_point(aes(y = transf_fact*Perc, group=Pack_grp.f), shape=16, size=1.6, color="black") + 
+  # Add second OY axis; note the transformation back (division)
+  scale_y_continuous(name=expression("CpG Frequency (10e6)"),
+                     sec.axis = sec_axis(trans = ~ . / transf_fact,name = "% of frequency"),
+                     limits=c(0,30)) +
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x="Coverage") +
+  scale_fill_manual(values=c("red","#0042F9"))+
+  scale_color_manual(values = c("red","#0042F9"))+
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=0, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10)
+        ) 
+p1
+
+
+# dev.new()  
+# pdf(file=file.path(pathpro,"benchmarks", "K56210ngXR21A_comb_intBlocks_graph.pdf"), 
+#     width = 3, height = 3.4, useDingbats = FALSE)
+# p1
+# dev.off()
+
+gp_cov10 <- 
+  read.xlsx(xlsxFile = file.path(pathpro,"benchmarks", 
+                                 "K56210ngXR21A_comb_intBlocks_graph.xlsx"),
+            sheet = 2, skipEmptyRows = TRUE)
+
+#stack by grp
+gp_cov10_1 <- gp_cov10 %>%
+  filter(Pack_grp %in% c("Original","Total")) %>%
+  mutate(Pack_grp.f = factor(as.factor(Pack_grp), order=T,
+         levels=c("Total","Original"),
+         labels=c("Increased by intersection","Original")),
+         Group.f = factor(as.factor(Group), order=T,
+         levels=c("CNS classifier","TCGA classifier"),
+         labels=c("CNS","TCGA")),
+         Cov.f= factor(as.factor(Cov), order=T,
+                       levels=c(5,10),
+                       labels=c("5X","10X"))
+        ) %>%
+  arrange(desc(Value))
+  
+# The transformation factor
+transf_fact <- max(gp_cov10_1$Value)/max(gp_cov10_1$Perc)
+
+p2 <- ggplot(data=gp_cov10_1,  mapping = aes(x=Group.f, y=Value, 
+                                      fill = Pack_grp.f, color = Pack_grp.f)) + 
+  geom_bar(stat = "identity", width = 0.5, position = position_identity(), color = NA) + 
+  #geom_line(aes(y = transf_fact*Perc, group=Pack_grp.f)) + 
+  geom_point(aes(y = transf_fact*Perc, group=Pack_grp.f), 
+             shape=16, size=1.6, color="black") + 
+  # Add second OY axis; note the transformation back (division)
+  scale_y_continuous(name=expression("CpG Frequency (10e3)"),
+                     sec.axis = sec_axis(trans = ~ . / transf_fact,
+                     name = "% of frequency"), limits=c(0,40)) +
+  facet_grid(cols=vars(Cov.f))+
+  #geom_hline(yintercept = c(5,10,15,20), color="grey") +
+  labs(x="Classifier coverage") +
+  scale_fill_manual(values=c("red","#0042F9"))+
+  scale_color_manual(values = c("red","#0042F9"))+
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        axis.text.x = element_text(size=13, angle=30, hjust = 1, face="bold"),
+        axis.text.y = element_text(size=13, face="bold"),
+        axis.title.x = element_text(size=13, face="bold"),
+        axis.title.y = element_text(size=13, face="bold"),
+        axis.title.y.right = element_text(size=13, face="bold"),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        legend.text = element_text(size=10),
+        strip.text = element_text(size = 13, face="bold")
+        ) 
+p2
+
+# dev.new()  
+# pdf(file=file.path(pathpro,"benchmarks", 
+# "K56210ngXR21A_comb_intBlocks_classifier_graph.pdf"), 
+#     width = 3, height = 3.4, useDingbats = FALSE)
+# p2
+# dev.off()
+
+```
+
