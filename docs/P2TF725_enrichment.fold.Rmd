@@ -1,0 +1,1198 @@
+---
+title: "P2_enrichment"
+author: "Jingru Yu"
+date: '2026-02-16'
+output: html_document
+---
+
+```{r warning=FALSE, message=FALSE}
+
+#rm(list=ls())
+
+library(dplyr)
+library(reshape2)
+library(stringr)
+library(openxlsx)
+library(writexl) #save x
+
+#clean data
+library(Hmisc) #descriptives
+library(readr)
+library(data.table) #setDT
+library(scales)
+
+library(ggpubr) #ggarrange
+library(ggbreak) #scale_y_break
+library(ggplot2)
+library(cowplot) #ggdraw, a simple add-on to ggplot
+library(ggrepel) #geom_text_repel
+library(ggforce) # for 'geom_arc_bar'
+
+#function cbind.fill, combine cols with different lengths
+cbind.fill<-function(...){
+    nm <- list(...) 
+    nm<-lapply(nm, as.matrix)
+    n <- max(sapply(nm, nrow)) 
+    do.call(cbind, lapply(nm, function (x) 
+    rbind(x, matrix(, n-nrow(x), ncol(x))))) 
+}
+
+#trim the spaces at the start and end of string
+trim <- function (x) gsub("^\\s+|\\s+$", "", x)
+
+pathclass <- "D:/Jingru/classification"
+pathmeth <- "D:/Jingru/methylation"
+pathref <- "D:/Jingru/references"
+pathct <- "W:/User/Jingru/Data/v2hg38Markers"
+pathct.d <- "D:/Jingru/deconv/v2hg38Markers"
+
+pathdvdf <- "W:/Jingru/deconv/Data"
+pathout <- "W:/Jingru/deconv/Output"
+
+```
+
+
+# enrichment
+
+```{r GetFreqPlot_fragment}
+path_enrich <- "D:/Jingru/references/P2TF725_enrich"
+
+
+df1 <- fread(file=file.path(path_enrich,"P2XR33cfRRBS_comb-subsample",
+                            "interFiles_frag.5cov/bed_file_counts_cov5v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df2 <- fread(file=file.path(path_enrich,"P2XR33EM_comb-subsample",
+                            "interFiles_frag.5cov/bed_file_counts_cov5v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df3 <- fread(file=file.path(path_enrich,"P2XR33FLEX_comb-subsample",
+                            "interFiles_frag.5cov/bed_file_counts_cov5v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df4 <- fread(file=file.path(path_enrich,"P2XR33SRSLY_comb-subsample",
+                            "interFiles_frag.5cov/bed_file_counts_cov5v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+df5 <- fread(file=file.path(path_enrich,"TF725XR33cfRRBS_comb-subsample",
+                            "interFiles_frag.5cov/bed_file_counts_cov5v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df6 <- fread(file=file.path(path_enrich,"TF725XR33EM_comb-subsample",
+                            "interFiles_frag.5cov/bed_file_counts_cov5v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df7 <- fread(file=file.path(path_enrich,"TF725XR33FLEX_comb-subsample",
+                            "interFiles_frag.5cov/bed_file_counts_cov5v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df8 <- fread(file=file.path(path_enrich,"TF725XR33SRSLY_comb-subsample",
+                            "interFiles_frag.5cov/bed_file_counts_cov5v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+
+en_m <- rbind(df1,df2,df3,df4,df5,df6,df7,df8)
+en_m <- en_m[en_m$V1!="file_name",]
+colnames(en_m) <- c("file_name", "row_count")
+
+en_m1 <- en_m %>% 
+  mutate(marker_type1=sapply(str_split(file_name, "_",  n = 4), `[`, 3),
+         marker_type=sapply(str_split(marker_type1, "\\.",  n = 3), `[`, 2),
+         bp.cnt_seq1=sapply(str_split(file_name, "-",  n = 2), `[`, 1),
+         bp.cnt_seq2=sapply(str_split(bp.cnt_seq1, "_",  n = 2), `[`, 2),
+         bp.cnt_seq=as.numeric(gsub("b","",bp.cnt_seq2)),
+         method1=sapply(str_split(file_name, "_",  n = 4), `[`, 1),
+         method2=sapply(str_split(method1, "XR33",  n = 2), `[`, 2),
+         samp_tp=sapply(str_split(method1, "XR33",  n = 2), `[`, 1))
+
+en_m1 <- en_m1 %>% 
+  mutate(
+         total=ifelse(marker_type=="CCGG50",yes=2317745,
+                      ifelse(marker_type=="UXM250",yes=9520,no=29401795)), #CpG
+         marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CCGG flanks","Cell type markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM","cfRRBS","SRSLY"),
+                labels=c("FLEXseq","EM-seq","cfRR(EM)seq","SRSLY-BS")),
+         row_count=as.numeric(row_count),
+         perc=round(row_count/total*100,digits = 1)) 
+en_m1 <- en_m1[,c("file_name","row_count","marker_type","bp.cnt_seq",
+                      "method2","samp_tp","total","marker_type.f","method.f","perc" )]
+
+en_m.p2 <- data.frame(
+  file_name=rep("0",times=12),
+  row_count=rep(0,times=12),
+  marker_type=rep(c("CCGG50","UXM250","allCpG"),times=4),
+  bp.cnt_seq=rep(0,times=12),
+  method2=rep(c("FLEX","EM","cfRRBS","SRSLY"),each=3),
+  samp_tp="P2",
+  total=rep(c(2317745,9520,29401795), times=4),
+  perc=rep(0,times=12))
+
+en_m.p2 <- en_m.p2 %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CCGG flanks","Cell type markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM","cfRRBS","SRSLY"),
+                labels=c("FLEXseq","EM-seq","cfRR(EM)seq","SRSLY-BS")))
+
+en_m.tf <- data.frame(
+  file_name=rep("0",times=12),
+  row_count=rep(0,times=12),
+  marker_type=rep(c("CCGG50","UXM250","allCpG"),times=4),
+  bp.cnt_seq=rep(0,times=12),
+  method2=rep(c("FLEX","EM","cfRRBS","SRSLY"),each=3),
+  samp_tp="TF725",
+  total=rep(c(2317745,9520,29401795), times=4),
+  perc=rep(0,times=12))
+
+en_m.tf <- en_m.tf %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CCGG flanks","Cell type markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM","cfRRBS","SRSLY"),
+                labels=c("FLEXseq","EM-seq","cfRR(EM)seq","SRSLY-BS")))
+
+
+en_m2 <- rbind(en_m.p2,en_m.tf,en_m1) %>%
+  arrange(marker_type.f) %>%
+  arrange(bp.cnt_seq)
+
+
+write.xlsx(en_m2, file = file.path(pathref, "P2TF725_enrich", 
+"P2TF725_enrichment_EMvs.FLEXvs.cfRRBS.SRSLY_frag.5cov.xlsx"), sheetName = "All",
+            quote=FALSE, sep="\t", rowNames = FALSE )
+        
+p2_line <- ggplot(data=en_m2[en_m2$samp_tp=="P2",], 
+                  aes(x = bp.cnt_seq, y = perc, color=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,102), expand=c(0,0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("red","#0042F9","#44A194","#FF9760"))+
+  labs(x = "Base pairs sequenced (Gbp) of plasma", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 3) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+p2_line
+
+tf_line <- ggplot(data=en_m2[en_m2$samp_tp=="TF725",], 
+                  aes(x = bp.cnt_seq, y = perc, color=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,102), expand=c(0,0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("red","#0042F9","#44A194","#FF9760"))+
+  labs(x = "Base pairs sequenced (Gbp) of FFPE", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 3) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+tf_line
+
+dev.new()
+pdf(file=file.path(pathref,"P2TF725_enrich",
+    paste0(str_sub(Sys.Date(), start = 3),"-P2TF725_enrichment_EMvs.FLEXvs.cfRRBS.SRSLY_frag.5cov.pdf")),
+    width = 8, height = 7.56, useDingbats = FALSE)
+ggarrange(p2_line,tf_line,
+                 common.legend = F, legend= NULL,
+                 ncol = 1, nrow = 2)
+dev.off()
+
+
+#all CpGs
+#y=1.52x-22.3; y=17.2, x=25.99; 25.99/5=5.20 #choose dots 20B,30B from WGBS
+# CCGG flanks
+# y=0.38x+43.1; y=77.7, x=91.05; 91.05/5=18.21 #choose dots 80B,90B from WGBS
+#Cell type markers
+#y=2.79x-32.8; y=50.0, x=29.7; 29.7/5=5.94 #choose dots 20B,30B from WGBS
+
+########## updated #############
+#all CpGs, 
+# (16.7-5)/10; y=1.17x-18.4; #choose dots 20B,30B from WGBS
+# y=17.2(X_flex=5), x=30.43; 30.43/5=6.08 
+# y=11(X_flex=5), x=25.13; 25.13/5=5.03 
+
+# CCGG flanks, 
+# (72.6-67.9)/10; y=0.47x+30.3; #choose dots 80B,90B from WGBS
+# y=77.7(X_flex=5), x=100.8; 100.8/5=20.2 
+# (53-42)/10; y=1.1x-13; #choose dots 50B,60B from WGBS
+# y=49.4(X_rrbs=5), x=40.6; 56.73/5=11.3 
+
+#Cell type markers, 
+# (61.9-41.6)/10; y=2.03x-19.3; #choose dots 30B,40B from WGBS
+# y=50.0 (X_flex=5), x=34.13; 34.1/5=6.82 
+# (41.6-15.9)/10; y=2.57x-35.5; #choose dots 20B,30B from WGBS
+# y=25.6 (X_rrbs=5), x=23.77; 23.8/5=4.76 
+```
+
+```{r GetFreqPlot_cpgc}
+path_enrich <- "D:/Jingru/references/P2TF725_enrich"
+
+
+# df1 <- fread(file=file.path(path_enrich,"P2XR33cfRRBS_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df2 <- fread(file=file.path(path_enrich,"P2XR33EM_comb-subsample",
+                            "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df3 <- fread(file=file.path(path_enrich,"P2XR33FLEX_comb-subsample",
+                            "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+# df4 <- fread(file=file.path(path_enrich,"P2XR33SRSLY_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+# df5 <- fread(file=file.path(path_enrich,"TF725XR33cfRRBS_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df6 <- fread(file=file.path(path_enrich,"TF725XR33EM_comb-subsample",
+                            "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df7 <- fread(file=file.path(path_enrich,"TF725XR33FLEX_comb-subsample",
+                           "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+# df8 <- fread(file=file.path(path_enrich,"TF725XR33SRSLY_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+
+en_m <- rbind(df1,df2,df3,df4,df5,df6,df7,df8)
+en_m <- en_m[en_m$V1!="file_name",]
+colnames(en_m) <- c("file_name", "row_count")
+
+en_m1 <- en_m %>% 
+  mutate(marker_type1=sapply(str_split(file_name, "_",  n = 4), `[`, 3),
+         marker_type=sapply(str_split(marker_type1, "\\.",  n = 3), `[`, 3),
+         bp.cnt_seq1=sapply(str_split(file_name, "-",  n = 2), `[`, 1),
+         bp.cnt_seq2=sapply(str_split(bp.cnt_seq1, "_",  n = 2), `[`, 2),
+         bp.cnt_seq=as.numeric(gsub("b","",bp.cnt_seq2)),
+         method1=sapply(str_split(file_name, "_",  n = 4), `[`, 1),
+         method2=sapply(str_split(method1, "XR33",  n = 2), `[`, 2),
+         samp_tp=sapply(str_split(method1, "XR33",  n = 2), `[`, 1))
+
+en_m1 <- en_m1 %>% 
+  mutate(
+         total=ifelse(marker_type=="CCGG50",yes=6978706,
+                      ifelse(marker_type=="UXM250",yes=74269,no=29401795)), #CpG
+         marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CpGs in CCGG flanks","CpGs in cell markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM","cfRRBS","SRSLY"),
+                labels=c("FLEXseq","EM-seq","cfRR(EM)seq","SRSLY-BS")),
+         row_count=as.numeric(row_count),
+         perc=round(row_count/total*100,digits = 1)) 
+en_m1 <- en_m1[,c("file_name","row_count","marker_type","bp.cnt_seq",
+                      "method2","samp_tp","total","marker_type.f","method.f","perc" )]
+
+en_m.p2 <- data.frame(
+  file_name=rep("0",times=12),
+  row_count=rep(0,times=12),
+  marker_type=rep(c("CCGG50","UXM250","allCpG"),times=4),
+  bp.cnt_seq=rep(0,times=12),
+  method2=rep(c("FLEX","EM","cfRRBS","SRSLY"),each=3),
+  samp_tp="P2",
+  total=rep(c(6978706,74269,29401795), times=4),
+  perc=rep(0,times=12))
+
+en_m.p2 <- en_m.p2 %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CpGs in CCGG flanks","CpGs in cell markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM","cfRRBS","SRSLY"),
+                labels=c("FLEXseq","EM-seq","cfRR(EM)seq","SRSLY-BS")))
+
+en_m.tf <- data.frame(
+  file_name=rep("0",times=12),
+  row_count=rep(0,times=12),
+  marker_type=rep(c("CCGG50","UXM250","allCpG"),times=4),
+  bp.cnt_seq=rep(0,times=12),
+  method2=rep(c("FLEX","EM","cfRRBS","SRSLY"),each=3),
+  samp_tp="TF725",
+  total=rep(c(6978706,74269,29401795), times=4),
+  perc=rep(0,times=12))
+
+en_m.tf <- en_m.tf %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CpGs in CCGG flanks","CpGs in cell markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM","cfRRBS","SRSLY"),
+                labels=c("FLEXseq","EM-seq","cfRR(EM)seq","SRSLY-BS")))
+
+
+en_m2 <- rbind(en_m.p2,en_m.tf,en_m1) %>%
+  arrange(marker_type.f) %>%
+  arrange(bp.cnt_seq)
+
+
+write.xlsx(en_m2, file = file.path(pathref, "P2TF725_enrich", 
+"P2TF725_enrichment_EMvs.FLEXvs.cfRRBS.SRSLY_cpg.5cov.xlsx"), sheetName = "All",
+            quote=FALSE, sep="\t", rowNames = FALSE )
+        
+p2_line2 <- ggplot(data=en_m2[en_m2$samp_tp=="P2",], 
+                  aes(x = bp.cnt_seq, y = perc, color=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,102), expand=c(0,0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("red","#0042F9","#44A194","#FF9760"))+
+  labs(x = "Base pairs sequenced (Gbp) of plasma", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 3) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+p2_line2
+
+tf_line2 <- ggplot(data=en_m2[en_m2$samp_tp=="TF725",], 
+                  aes(x = bp.cnt_seq, y = perc, color=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,102), expand=c(0,0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("red","#0042F9","#44A194","#FF9760"))+
+  labs(x = "Base pairs sequenced (Gbp) of FFPE", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 3) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+tf_line2
+
+dev.new()
+pdf(file=file.path(pathref,"P2TF725_enrich",
+    paste0(str_sub(Sys.Date(), start = 3),"-P2TF725_enrichment_EMvs.FLEXvs.cfRRBS.SRSLY_cpg.5cov.pdf")),
+    width = 8, height = 7.56, useDingbats = FALSE)
+ggarrange(p2_line2,tf_line2,
+                 common.legend = F, legend= NULL,
+                 ncol = 1, nrow = 2)
+dev.off()
+
+
+#all CpGs
+#y=1.52x-22.3; y=17.2, x=25.99; 25.99/5=5.20 #choose dots 20B,30B from WGBS
+# CCGG flanks
+# y=0.38x+43.1; y=77.7, x=91.05; 91.05/5=18.21 #choose dots 80B,90B from WGBS
+#Cell type markers
+#y=2.79x-32.8; y=50.0, x=29.7; 29.7/5=5.94 #choose dots 20B,30B from WGBS
+
+########## updated #############
+#all CpGs, 
+# (16.7-5)/10; y=1.17x-18.4; #choose dots 20B,30B from WGBS
+# y=17.2(X_flex=5), x=30.43; 30.43/5=6.08 
+# y=11(X_flex=5), x=25.13; 25.13/5=5.03 
+
+# CCGG flanks, 
+# (72.6-67.9)/10; y=0.47x+30.3; #choose dots 80B,90B from WGBS
+# y=77.7(X_flex=5), x=100.8; 100.8/5=20.2 
+# (53-42)/10; y=1.1x-13; #choose dots 50B,60B from WGBS
+# y=49.4(X_rrbs=5), x=40.6; 56.73/5=11.3 
+
+#Cell type markers, 
+# (61.9-41.6)/10; y=2.03x-19.3; #choose dots 30B,40B from WGBS
+# y=50.0 (X_flex=5), x=34.13; 34.1/5=6.82 
+# (41.6-15.9)/10; y=2.57x-35.5; #choose dots 20B,30B from WGBS
+# y=25.6 (X_rrbs=5), x=23.77; 23.8/5=4.76 
+```
+
+```{r GetFreqPlot_fragment}
+path_enrich <- "D:/Jingru/references/P2TF725_enrich"
+
+
+df2 <- fread(file=file.path(path_enrich,"P2XR33EM_comb-subsample",
+                            "interFiles_frag.10cov/bed_file_counts_cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df3 <- fread(file=file.path(path_enrich,"P2XR33FLEX_comb-subsample",
+                            "interFiles_frag.10cov/bed_file_counts_cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+df6 <- fread(file=file.path(path_enrich,"TF725XR33EM_comb-subsample",
+                            "interFiles_frag.10cov/bed_file_counts_cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df7 <- fread(file=file.path(path_enrich,"TF725XR33FLEX_comb-subsample",
+                            "interFiles_frag.10cov/bed_file_counts_cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+
+en_m <- rbind(df3,df2,df7,df6)
+en_m <- en_m[en_m$V1!="file_name",]
+colnames(en_m) <- c("file_name", "row_count")
+
+en_m1 <- en_m %>% 
+  mutate(marker_type1=sapply(str_split(file_name, "_",  n = 4), `[`, 3),
+         marker_type=sapply(str_split(marker_type1, "\\.",  n = 3), `[`, 2),
+         bp.cnt_seq1=sapply(str_split(file_name, "-",  n = 2), `[`, 1),
+         bp.cnt_seq2=sapply(str_split(bp.cnt_seq1, "_",  n = 2), `[`, 2),
+         bp.cnt_seq=as.numeric(gsub("b","",bp.cnt_seq2)),
+         method1=sapply(str_split(file_name, "_",  n = 4), `[`, 1),
+         method2=sapply(str_split(method1, "XR33",  n = 2), `[`, 2),
+         samp_tp=sapply(str_split(method1, "XR33",  n = 2), `[`, 1))
+
+en_m1 <- en_m1 %>% 
+  mutate(
+         total=ifelse(marker_type=="CCGG50",yes=2317745,
+                      ifelse(marker_type=="UXM250",yes=9520,no=29401795)), #CpG
+         marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CCGG flanks","Cell type markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM"),
+                labels=c("FLEXseq","EM-seq")),
+         row_count=as.numeric(row_count),
+         perc=round(row_count/total*100,digits = 1)) 
+en_m1 <- en_m1[,c("file_name","row_count","marker_type","bp.cnt_seq",
+                      "method2","samp_tp","total","marker_type.f","method.f","perc" )]
+
+en_m.p2 <- data.frame(
+  file_name=rep("0",times=6),
+  row_count=rep(0,times=6),
+  marker_type=rep(c("CCGG50","UXM250","allCpG"),times=2),
+  bp.cnt_seq=rep(0,times=6),
+  method2=rep(c("FLEX","EM"),each=3),
+  samp_tp="P2",
+  total=rep(c(2317745,9520,29401795), times=2),
+  perc=rep(0,times=6))
+
+en_m.p2 <- en_m.p2 %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CCGG flanks","Cell type markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM"),
+                labels=c("FLEXseq","EM-seq")))
+
+en_m.tf <- data.frame(
+  file_name=rep("0",times=6),
+  row_count=rep(0,times=6),
+  marker_type=rep(c("CCGG50","UXM250","allCpG"),times=2),
+  bp.cnt_seq=rep(0,times=6),
+  method2=rep(c("FLEX","EM"),each=3),
+  samp_tp="TF725",
+  total=rep(c(2317745,9520,29401795), times=2),
+  perc=rep(0,times=6))
+
+en_m.tf <- en_m.tf %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CCGG flanks","Cell type markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM"),
+                labels=c("FLEXseq","EM-seq")))
+
+
+en_m2 <- rbind(en_m.p2,en_m.tf,en_m1) %>%
+  arrange(marker_type.f) %>%
+  arrange(bp.cnt_seq)
+
+
+write.xlsx(en_m2, file = file.path(pathref, "P2TF725_enrich", 
+"P2TF725_enrichment_EMvs.FLEX_length50_frag.10cov.xlsx"), sheetName = "All",
+            quote=FALSE, sep="\t", rowNames = FALSE )
+
+en_m2 <- 
+  read.xlsx(xlsxFile = file.path(pathref, "P2TF725_enrich", 
+"P2TF725_enrichment_EMvs.FLEX_length50_frag.10cov.xlsx"),
+            sheet = 1, skipEmptyRows = TRUE)
+
+en_m2$method.f <- factor(as.factor(en_m2$method2), ordered=T,
+                levels=c("FLEX","EM"),
+                labels=c("FLEXseq","EM-seq"))
+        
+p2_line3 <- ggplot(data=en_m2[en_m2$samp_tp=="P2",], 
+                  aes(x = bp.cnt_seq, y = perc, color=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=seq(0,50, by = 25),
+                     labels=seq(0,50, by = 25), limits=c(0,52), expand=c(0,0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("FLEXseq"="red","EM-seq"="#0042F9"))+
+  labs(x = "Base pairs sequenced (Gbp) of plasma", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 3) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+p2_line3
+
+tf_line3 <- ggplot(data=en_m2[en_m2$samp_tp=="TF725",], 
+                  aes(x = bp.cnt_seq, y = perc, color=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=seq(0,50, by = 25),
+                     labels=seq(0,50, by = 25), limits=c(0,52), expand=c(0,0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("FLEXseq"="red","EM-seq"="#0042F9"))+
+  labs(x = "Base pairs sequenced (Gbp) of FFPE", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 3) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+tf_line3
+
+dev.new()
+pdf(file=file.path(pathref,"P2TF725_enrich",
+    paste0(str_sub(Sys.Date(), start = 3),"-P2TF725_enrichment_EMvs.FLEX_length50_frag.10cov-v2.pdf")),
+    width = 8, height = 7, useDingbats = FALSE)
+ggarrange(p2_line3,tf_line3,
+                 common.legend = T, legend = "bottom",
+          ncol = 1, nrow = 2,align = "v")
+dev.off()
+
+##################
+#K562
+
+df1 <- fread(file=file.path(path_enrich,"K562WGBSvLG1ug_comb-subsample",
+                            "interFiles_frag.10cov/bed_file_counts_cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df2 <- fread(file=file.path(path_enrich,"K562_XR_repall-subsample",
+                            "interFiles_frag.10cov/bed_file_counts_cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+
+en_m <- rbind(df1,df2)
+en_m <- en_m[en_m$V1!="file_name",]
+colnames(en_m) <- c("file_name", "row_count")
+
+en_m1 <- en_m %>% 
+  mutate(marker_type1=sapply(str_split(file_name, "_",  n = 4), `[`, 3),
+         marker_type=sapply(str_split(marker_type1, "\\.",  n = 3), `[`, 2),
+         bp.cnt_seq1=sapply(str_split(file_name, "-",  n = 2), `[`, 1),
+         bp.cnt_seq2=sapply(str_split(bp.cnt_seq1, "_",  n = 2), `[`, 2),
+         bp.cnt_seq=as.numeric(gsub("b","",bp.cnt_seq2)),
+         method1=sapply(str_split(file_name, "_",  n = 4), `[`, 1),
+         method2=ifelse(method1=="K562WGBSvLG1ug","WGBS","FLEXseq"))
+
+en_m1 <- en_m1 %>% 
+  mutate(
+         total=ifelse(marker_type=="CCGG50",yes=2317745,
+                      ifelse(marker_type=="UXM250",yes=9520,no=29401795)), #CpG
+         marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CCGG flanks","Cell type markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEXseq","WGBS"),
+                labels=c("FLEXseq","WGBS")),
+         row_count=as.numeric(row_count),
+         perc=round(row_count/total*100,digits = 1)) 
+en_m1 <- en_m1[,c("file_name","row_count","marker_type","bp.cnt_seq",
+                      "method2","total","marker_type.f","method.f","perc" )]
+
+en_m.K562 <- data.frame(
+  file_name=rep("0",times=6),
+  row_count=rep(0,times=6),
+  marker_type=rep(c("CCGG50","UXM250","allCpG"),times=2),
+  bp.cnt_seq=rep(0,times=6),
+  method2=rep(c("FLEXseq","WGBS"),each=3),
+  total=rep(c(2317745,9520,29401795), times=2),
+  perc=rep(0,times=6))
+
+en_m.K562 <- en_m.K562 %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","allCpG"),
+                labels=c("CCGG flanks","Cell type markers","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEXseq","WGBS"),
+                labels=c("FLEXseq","WGBS")))
+
+
+en_m2 <- rbind(en_m.K562,en_m1) %>%
+  arrange(marker_type.f) %>%
+  arrange(bp.cnt_seq)
+
+
+write.xlsx(en_m2, file = file.path(pathref, "P2TF725_enrich", 
+"K562_enrichment_WGBSvs.FLEX_length50_frag.10cov.xlsx"), sheetName = "All",
+            quote=FALSE, sep="\t", rowNames = FALSE )
+        
+k562_line <- ggplot(data=en_m2, 
+                  aes(x = bp.cnt_seq, y = perc, color=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,102), expand=c(0,0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("red","#0042F9"))+
+  labs(x = "Base pairs sequenced (Gbp) of K562", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 3) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+k562_line
+
+dev.new()
+pdf(file=file.path(pathref,"P2TF725_enrich",
+    paste0(str_sub(Sys.Date(), start = 3),"-K562_enrichment_WGBSvs.FLEX_length50_frag.10cov.pdf")),
+    width = 8, height = 3.8, useDingbats = FALSE)
+k562_line
+dev.off()
+```
+
+```{r GetFreqPlot_cpg10cov}
+path_enrich <- "D:/Jingru/references/P2TF725_enrich"
+
+
+# df1 <- fread(file=file.path(path_enrich,"P2XR33cfRRBS_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df2 <- fread(file=file.path(path_enrich,"P2XR33EM_comb-subsample",
+                            "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df3 <- fread(file=file.path(path_enrich,"P2XR33FLEX_comb-subsample",
+                            "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+# df4 <- fread(file=file.path(path_enrich,"P2XR33SRSLY_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+# df5 <- fread(file=file.path(path_enrich,"TF725XR33cfRRBS_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df6 <- fread(file=file.path(path_enrich,"TF725XR33EM_comb-subsample",
+                            "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df7 <- fread(file=file.path(path_enrich,"TF725XR33FLEX_comb-subsample",
+                           "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+# df8 <- fread(file=file.path(path_enrich,"TF725XR33SRSLY_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+
+en_m <- rbind(df2,df3,df6,df7)
+en_m <- en_m[en_m$V1!="file_name",]
+colnames(en_m) <- c("file_name", "row_count")
+
+en_m1 <- en_m %>% 
+  mutate(marker_type1=sapply(str_split(file_name, "_",  n = 4), `[`, 3),
+         marker_type=sapply(str_split(marker_type1, "\\.",  n = 3), `[`, 3),
+         bp.cnt_seq1=sapply(str_split(file_name, "-",  n = 2), `[`, 1),
+         bp.cnt_seq2=sapply(str_split(bp.cnt_seq1, "_",  n = 2), `[`, 2),
+         bp.cnt_seq=as.numeric(gsub("b","",bp.cnt_seq2)),
+         method1=sapply(str_split(file_name, "_",  n = 4), `[`, 1),
+         method2=sapply(str_split(method1, "XR33",  n = 2), `[`, 2),
+         samp_tp=sapply(str_split(method1, "XR33",  n = 2), `[`, 1))
+
+en_m1 <- en_m1 %>% 
+  mutate(
+         total=ifelse(marker_type=="CCGG50",yes=6978706,
+                      ifelse(marker_type=="UXM250",yes=74269,
+                             ifelse(marker_type=="promoter",yes=2789038,no=27852739))), #CpG
+         marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","promoter","allCpG"),
+                labels=c("CpGs in CCGG flanks","CpGs in cell markers","CpGs in promoters","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM"),
+                labels=c("FLEXseq","EM-seq")),
+         row_count=as.numeric(row_count),
+         perc=round(row_count/total*100,digits = 1)) 
+en_m1 <- en_m1[,c("file_name","row_count","marker_type","bp.cnt_seq",
+                      "method2","samp_tp","total","marker_type.f","method.f","perc" )]
+
+en_m.p2 <- data.frame(
+  file_name=rep("0",times=8),
+  row_count=rep(0,times=8),
+  marker_type=rep(c("CCGG50","UXM250","promoter","allCpG"),times=2),
+  bp.cnt_seq=rep(0,times=8),
+  method2=rep(c("FLEX","EM"),each=4),
+  samp_tp="P2",
+  total=rep(c(6978706,74269,2789038,27852739), times=4),
+  perc=rep(0,times=8))
+
+en_m.p2 <- en_m.p2 %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","promoter","allCpG"),
+                labels=c("CpGs in CCGG flanks","CpGs in cell markers","CpGs in promoters","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM"),
+                labels=c("FLEXseq","EM-seq")))
+
+en_m.tf <- data.frame(
+  file_name=rep("0",times=8),
+  row_count=rep(0,times=8),
+  marker_type=rep(c("CCGG50","UXM250","promoter","allCpG"),times=2),
+  bp.cnt_seq=rep(0,times=8),
+  method2=rep(c("FLEX","EM"),each=4),
+  samp_tp="TF725",
+  total=rep(c(6978706,74269,2789038,27852739), times=4),
+  perc=rep(0,times=8))
+
+en_m.tf <- en_m.tf %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","promoter","allCpG"),
+                labels=c("CpGs in CCGG flanks","CpGs in cell markers","CpGs in promoters","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","EM"),
+                labels=c("FLEXseq","EM-seq")))
+
+                
+en_m2 <- rbind(en_m.p2,en_m.tf,en_m1) %>%
+  arrange(marker_type.f) %>%
+  arrange(bp.cnt_seq)
+                
+write.xlsx(en_m2, file = file.path(pathref, "P2TF725_enrich", 
+"P2TF725_enrichment_EMvs.FLEX_length50_cpg.10cov.xlsx"), sheetName = "All",
+            quote=FALSE, sep="\t", rowNames = FALSE )
+
+en_m2.p <- en_m2[en_m2$bp.cnt_seq<80 & en_m2$samp_tp=="P2",] %>% 
+ mutate(bp.cnt.f=factor(as.factor(bp.cnt_seq), ordered=T,
+                levels=c("0","2","5","10","15","20","30","40","60"),
+                labels=c("0","2","5","10","15","20","30","40","60")))
+
+p2_line4 <- ggplot(data=en_m2.p[!is.na(en_m2.p$bp.cnt.f),], 
+                  aes(x = bp.cnt.f, y = perc, color=method.f, group=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+scale_x_discrete(drop = FALSE) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("red","#0042F9"))+
+  labs(x = "Base pairs sequenced (Gbp) of plasma", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 4) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(3), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+p2_line4
+
+en_m2.tf <- en_m2[en_m2$bp.cnt_seq<80 & en_m2$samp_tp=="TF725",] %>% 
+ mutate(bp.cnt.f=factor(as.factor(bp.cnt_seq), ordered=T,
+                levels=c("0","2","5","9","15","20","30","40","60"),
+                labels=c("0","2","5","10","15","20","30","40","60")))
+tf_line4 <- ggplot(data=en_m2.tf[!is.na(en_m2.tf$bp.cnt.f),], 
+                  aes(x = bp.cnt.f, y = perc, color=method.f, group=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_discrete(drop = FALSE) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("red","#0042F9"))+
+  labs(x = "Base pairs sequenced (Gbp) of FFPE", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 4) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(3), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+tf_line4
+
+dev.new()
+pdf(file=file.path(pathref,"P2TF725_enrich",
+    paste0(str_sub(Sys.Date(), start = 3),"-P2TF725_enrichment_EMvs.FLEX_length50_cpg.10cov.pdf")),
+    width = 9.5, height = 7, useDingbats = FALSE)
+ggarrange(p2_line4,tf_line4,
+                 common.legend = F, legend= NULL,
+                 ncol = 1, nrow = 2)
+dev.off()
+
+
+#############p2###############
+# CCGG flanks, 
+# (58.6-37.7)/10; y=2.09x-4.1; #choose dots 20-30B from WGBS
+# y=53(X_flex=5), x=27.32; 27.32/5=5.5 
+
+
+#Cell type markers, 
+# (33.6-13.3)/5; y=4.06x-27.3; #choose dots 10-15B from WGBS
+# y=24.9 (X_flex=5), x=12.86; 12.86/5=2.6 
+
+#promoter
+
+# (43.2-21.1)/10; y=2.21x-23.1; #choose dots 20-30B from WGBS
+#y=26 (X_flex=5), x=22.217; 22.22/5=4.4
+
+#all CpGs, 
+# (20.6-7.2)/5; y=2.68x-33; #choose dots 15-20B from WGBS
+# y=16.9(X_flex=5), x=18.62; 18.62/5=3.7 
+
+
+
+#############TF725###############
+# CCGG flanks, 
+# (62.5-46.5)/10; y=1.6x-1.5; #choose dots 30-40B from WGBS
+# y=54.9(X_flex=5), x=35.25; 35.25/5=7.1 
+
+
+#Cell type markers, 
+# (30.7-16)/5; y=2.94x-28.1; #choose dots 10-15B from WGBS
+# y=23.6 (X_flex=5), x=17.585; 17.585/5=3.5
+
+#promoter
+
+# (46.6-22.2)/10; y= 2.44x-26.6; #choose dots 20-30B from WGBS
+#y=39.1 (X_flex=5), x=26.93; 26.93/5=5.4
+
+#all CpGs, 
+# (21.2-10)/5; y=2.24x-23.6; #choose dots 15-20B from WGBS
+# y=16.8(X_flex=5), x=18.04; 18.04/5=3.6 
+
+
+```
+
+```{r}
+#################
+df1 <- fread(file=file.path(path_enrich,"K562WGBSvLG1ug_comb-subsample",
+                            "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df2 <- fread(file=file.path(path_enrich,"K562_XR_repall-subsample",
+                            "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+
+en_m.k562 <- rbind(df1,df2)
+en_m.k562 <- en_m.k562[en_m.k562$V1!="file_name",]
+colnames(en_m.k562) <- c("file_name", "row_count")
+
+en_m1.k562 <- en_m.k562 %>% 
+  mutate(marker_type1=sapply(str_split(file_name, "_",  n = 4), `[`, 3),
+         marker_type=sapply(str_split(marker_type1, "\\.",  n = 3), `[`, 3),
+         bp.cnt_seq1=sapply(str_split(file_name, "-",  n = 2), `[`, 1),
+         bp.cnt_seq2=sapply(str_split(bp.cnt_seq1, "_",  n = 2), `[`, 2),
+         bp.cnt_seq=as.numeric(gsub("b","",bp.cnt_seq2)),
+         method1=sapply(str_split(file_name, "_",  n = 4), `[`, 1),
+         method2=ifelse(method1=="K562WGBSvLG1ug","WGBS","FLEXseq"),
+         samp_tp="K562")
+
+
+en_m1.k562 <- en_m1.k562 %>% 
+  mutate(
+         total=ifelse(marker_type=="CCGG50",yes=6978706,
+                      ifelse(marker_type=="UXM250",yes=74269,
+                             ifelse(marker_type=="promoter",yes=2789038,no=27852739))), #CpG
+         marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","promoter","allCpG"),
+                labels=c("CpGs in CCGG flanks","CpGs in cell markers","CpGs in promoters","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEXseq","WGBS"),
+                labels=c("FLEXseq","WGBS")),
+         row_count=as.numeric(row_count),
+         perc=round(row_count/total*100,digits = 1)) 
+en_m1.k562 <- en_m1.k562[,c("file_name","row_count","marker_type","bp.cnt_seq",
+                      "method2","samp_tp","total","marker_type.f","method.f","perc" )]
+
+en_m0.k562 <- data.frame(
+  file_name=rep("0",times=8),
+  row_count=rep(0,times=8),
+  marker_type=rep(c("CCGG50","UXM250","promoter","allCpG"),times=2),
+  bp.cnt_seq=rep(0,times=8),
+  method2=rep(c("FLEXseq","WGBS"),each=4),
+  samp_tp="K562",
+  total=rep(c(6978706,74269,2789038,27852739), times=4),
+  perc=rep(0,times=8))
+
+en_m0.k562 <- en_m0.k562 %>% 
+ mutate(marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","promoter","allCpG"),
+                labels=c("CpGs in CCGG flanks","CpGs in cell markers","CpGs in promoters","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEXseq","WGBS"),
+                labels=c("FLEXseq","WGBS")))
+
+
+en_m2.k562 <- rbind(en_m0.k562,en_m1.k562) %>%
+  arrange(marker_type.f) %>%
+  arrange(bp.cnt_seq)
+
+
+write.xlsx(en_m2.k562, file = file.path(pathref, "P2TF725_enrich", 
+"K562_enrichment_WGBSvs.FLEX_length50_cpg.10cov.xlsx"), sheetName = "All",
+            quote=FALSE, sep="\t", rowNames = FALSE )
+
+en_m2.k562 <- en_m2.k562 %>% 
+ mutate(bp.cnt.f=factor(as.factor(bp.cnt_seq), ordered=T,
+                levels=c("0","2","5","10","20","40","60","80","100"),
+                labels=c("0","2","5","10","20","40","60","80","100")))
+
+
+k562_line <- ggplot(data=en_m2.k562[!is.na(en_m2.k562$bp.cnt.f),],  
+                  aes(x = bp.cnt.f, y = perc, color=method.f, group=method.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1) + 
+  scale_x_discrete(drop = FALSE) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("red","#0042F9"))+
+  labs(x = "Base pairs sequenced (Gbp) of K562", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 4) +
+   # Add vertical line & label
+  geom_vline(xintercept = c(3), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+k562_line
+
+dev.new()
+pdf(file=file.path(pathref,"P2TF725_enrich",
+    paste0(str_sub(Sys.Date(), start = 3),"-K562_enrichment_WGBSvs.FLEX_length50_cpg.10cov.pdf")),
+    width = 8, height = 3.8, useDingbats = FALSE)
+k562_line
+dev.off()
+
+dev.new()
+pdf(file=file.path(pathref,"P2TF725_enrich",
+    paste0(str_sub(Sys.Date(), start = 3),
+           "-P2TF725K562_enrichment_EMvs.FLEX_length50_cpg.10cov.pdf")),
+    width = 9.5, height = 10.2, useDingbats = FALSE)
+ggarrange(p2_line4,tf_line4,k562_line,
+                 common.legend = F, legend= NULL,
+                 ncol = 1, nrow = 3)
+dev.off()
+
+
+#############K562###############
+# CCGG flanks, 
+# (45.4-32.8)/20; y=0.63x-5; #choose dots 60-80B from WGBS
+# y=55.3 (X_flex=5), x=95.71; 95.71/5=19.1 
+
+
+#Cell type markers, 
+# (32.6-20.7)/10; y=1.19x-15; #choose dots 30-40B from WGBS
+# y=24.7 (X_flex=5), x=33.36; 33.36/5=6.7
+
+#promoter
+# (28.7-19.2)/20; y= 0.475x-9.3; #choose dots 60-80B from WGBS
+#y=37.7 (X_flex=5), x=98.95; 98.95/5=19.8
+
+#all CpGs, 
+# (20.4-9.8)/10; y=1.06x-11.4; #choose dots 20-30B from WGBS
+# y=17.7(X_flex=5), x=27.45; 27.45/5=5.5 
+
+###################
+#combine the samp_tp
+
+samp_comb <- rbind(en_m2,en_m2.k562)
+samp_comb$method2 <- ifelse(samp_comb$method2=="FLEX","FLEXseq",samp_comb$method2)
+samp_comb$method.f <- factor(as.factor(samp_comb$method2), ordered=T,
+                levels=c("FLEXseq","EM","WGBS"),
+                labels=c("FLEXseq","EM-seq","EM-seq"))
+
+samp_em <- samp_comb[samp_comb$method2 %in% c("EM","WGBS"),] 
+samp_em$samp_tp.f <- factor(as.factor(samp_em$samp_tp), order=T,
+                                 levels=c("P2","TF725","K562"),
+                            labels=c("P2 (EM-seq)","TF725 (EM-seq)","K562 (WGBS)"))
+
+
+
+
+
+m_line1 <- ggplot(data=samp_em,
+                  aes(x = bp.cnt_seq, y = perc, color=samp_tp.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=c(0,2,5,10,15,20,30,40,60,80),
+                     labels=c(0,2,5,10,15,20,30,40,60,80), limits=c(0,82), expand=c(0,0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("#0B2D72","#0992C2","#0AC4E0"))+
+  labs(x = "Base pairs sequenced (Gbp) of FFPE", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 4) +
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+m_line1
+
+samp_flex <- samp_comb[samp_comb$method2=="FLEXseq",] 
+samp_flex$samp_tp.f <- factor(as.factor(samp_flex$samp_tp), order=T,
+                                 levels=c("K562","P2","TF725"),
+                            labels=c("K562 (FLEXseq)","P2 (FLEXseq)","TF725 (FLEXseq)"))
+
+
+m_line2 <- ggplot(data=samp_flex,
+                  aes(x = bp.cnt_seq, y = perc, color=samp_tp.f)) +
+  geom_point(size=0.3) + 
+  geom_line(linewidth=1)+
+  scale_x_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,102), expand=c(0,0)) +
+  scale_y_continuous(breaks=seq(0,100, by = 20),
+                     labels=seq(0,100, by = 20), limits=c(0,100), expand=c(0,0)) +
+  scale_color_manual(values=c("#0AC4E0","#0B2D72","#0992C2"))+
+  labs(x = "Base pairs sequenced (Gbp) of FFPE", y = "Covered target (%)") +
+  facet_wrap(~ marker_type.f, ncol = 4) +
+  geom_vline(xintercept = c(5), color="grey50",linetype="dashed", linewidth=0.4) + 
+  theme(panel.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.border = element_rect(color="black",fill=NA),
+        legend.position="bottom",
+        legend.title=element_blank(),
+        text=element_text(size=13, face="bold"),
+        axis.text.x = element_text(size=13, face="bold",angle = 0,hjust=1),
+        axis.text.y = element_text(size=13, face="bold"),
+        strip.text = element_text(size =13, face="bold")
+)
+m_line2
+
+dev.new()
+pdf(file=file.path(pathref,"P2TF725_enrich",
+    paste0(str_sub(Sys.Date(), start = 3),"-P2TF725K562_enrichment_EMvs.FLEX.WGBS_length50_cpg.10cov.pdf")),
+    width = 9.5, height = 7, useDingbats = FALSE)
+ggarrange(m_line1,m_line2,
+                 common.legend = F, legend= NULL,
+                 ncol = 1, nrow = 2)
+dev.off()
+```
+
+
+```{r GetFreqPlot_cpg1cov}
+path_enrich <- "D:/Jingru/references/P2TF725_enrich"
+
+
+# df1 <- fread(file=file.path(path_enrich,"P2XR33cfRRBS_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df2 <- fread(file=file.path(path_enrich,"P2XR33cfRRBS_comb-subsample",
+                            "interFiles_cpg.1cov/bed_file_counts_cpg.cov1.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df3 <- fread(file=file.path(path_enrich,"P2XR33FLEX_comb-subsample",
+                            "interFiles_cpg.1cov/bed_file_counts_cpg.cov1.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+# df4 <- fread(file=file.path(path_enrich,"P2XR33SRSLY_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+# df5 <- fread(file=file.path(path_enrich,"TF725XR33cfRRBS_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df6 <- fread(file=file.path(path_enrich,"TF725XR33cfRRBS_comb-subsample",
+                            "interFiles_cpg.1cov/bed_file_counts_cpg.cov1.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+df7 <- fread(file=file.path(path_enrich,"TF725XR33FLEX_comb-subsample",
+                           "interFiles_cpg.1cov/bed_file_counts_cpg.cov1.txt"),
+                    header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+# df8 <- fread(file=file.path(path_enrich,"TF725XR33SRSLY_comb-subsample",
+#                             "interFiles_cpg.10cov/bed_file_counts_cpg.cov10v2.txt"),
+#                     header = FALSE, sep="\t",stringsAsFactors=FALSE, quote="",fill=TRUE)
+
+
+en_m <- rbind(df2,df3,df6,df7)
+en_m <- en_m[en_m$V1!="file_name",]
+colnames(en_m) <- c("file_name", "row_count")
+
+en_m1 <- en_m %>% 
+  mutate(marker_type1=sapply(str_split(file_name, "_",  n = 4), `[`, 3),
+         marker_type=sapply(str_split(marker_type1, "\\.",  n = 3), `[`, 3),
+         bp.cnt_seq1=sapply(str_split(file_name, "-",  n = 2), `[`, 1),
+         bp.cnt_seq2=sapply(str_split(bp.cnt_seq1, "_",  n = 2), `[`, 2),
+         bp.cnt_seq=as.numeric(gsub("b","",bp.cnt_seq2)),
+         method1=sapply(str_split(file_name, "_",  n = 4), `[`, 1),
+         method2=sapply(str_split(method1, "XR33",  n = 2), `[`, 2),
+         samp_tp=sapply(str_split(method1, "XR33",  n = 2), `[`, 1))
+
+en_m1_ex <- en_m1[en_m1$bp.cnt_seq2=="05b",] %>% 
+  mutate(
+         total=ifelse(marker_type=="CCGG50",yes=6978706,
+                      ifelse(marker_type=="UXM250",yes=74269,
+                             ifelse(marker_type=="promoter",yes=2789038,no=27852739))), #CpG
+         marker_type.f=factor(as.factor(marker_type), ordered=T,
+                levels=c("CCGG50","UXM250","promoter","allCpG"),
+                labels=c("CpGs in CCGG flanks","CpGs in cell markers","CpGs in promoters","All CpGs")),
+         method.f=factor(as.factor(method2), ordered=T,
+                levels=c("FLEX","cfRRBS"),
+                labels=c("FLEXseq","cfRREMseq")),
+         row_count=as.numeric(row_count),
+         perc=round(row_count/total*100,digits = 1)) 
+en_m1_ex <- en_m1_ex[,c("file_name","row_count","marker_type","bp.cnt_seq2",
+                      "method2","samp_tp","total","marker_type.f","method.f","perc" )]
+
+```
+
